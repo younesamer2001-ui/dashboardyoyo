@@ -2,7 +2,6 @@
 
 import { Activity } from "lucide-react";
 import FeedList from "@/components/dashboard/FeedList";
-import { feedItems } from "@/lib/mock-data";
 
 export default function FeedPage() {
   return (
@@ -17,7 +16,7 @@ export default function FeedPage() {
         </p>
       </div>
 
-      <FeedList items={feedItems} />
+      <FeedList />
     </div>
   );
 }
