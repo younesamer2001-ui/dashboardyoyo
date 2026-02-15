@@ -1,12 +1,13 @@
-// Storage module - uses in-memory storage with optional file persistence
-// On Vercel: data persists for the lifetime of the function (not across deploys)
-// For production: consider using Redis, Upstash, or a database
+// Storage module - uses Vercel Blob for persistent storage
+// Data survives across deployments and cold starts
+import { put, head } from '@vercel/blob';
 
-import fs from 'fs/promises';
-import path from 'path';
+const BLOB_KEY = 'dashboard-data.json';
 
-// In-memory store (persists during function lifetime)
-let memoryStore: any = null;
+// In-memory cache to reduce blob reads
+let memoryCache: any = null;
+let lastFetch = 0;
+const CACHE_TTL = 5000; // 5 second cache
 
 // Default data structure
 const defaultData = {
@@ -19,7 +20,7 @@ const defaultData = {
     {
       id: 'kimi',
       name: 'Kimi',
-      icon: '🤖',
+      icon: '\u{1F916}',
       status: 'active',
       currentTask: 'Monitoring dashboard',
       lastActive: new Date().toISOString(),
@@ -35,25 +36,16 @@ const defaultData = {
   }
 };
 
-// Check if we're in a serverless environment (Vercel)
-const isServerless = () => {
-  return process.env.VERCEL === '1' || !process.cwd().includes('/root');
-};
-
-export async function readData() {
-  // Return from memory if available
-  if (memoryStore) {
-    return memoryStore;
-  }
-
-  // Try to read from file (for local dev)
-  if (!isServerless()) {
-    try {
-      const DATA_FILE = path.join(process.cwd(), 'data', 'dashboard-data.json');
-      const content = await fs.readFile(DATA_FILE, 'utf-8');
-      const data = JSON.parse(content);
-      
-      memoryStore = {
+async function fetchFromBlob(): Promise<any> {
+  try {
+    // Try to fetch existing data from blob
+    const response = await fetch(
+      `${process.env.BLOB_STORE_URL || 'https://ew3v5axmzgaofyhr.public.blob.vercel-storage.com'}/${BLOB_KEY}`,
+      { cache: 'no-store' }
+    );
+    if (response.ok) {
+      const data = await response.json();
+      return {
         ...defaultData,
         ...data,
         feed: data.feed || defaultData.feed,
@@ -61,53 +53,65 @@ export async function readData() {
         agents: data.agents || defaultData.agents,
         stats: { ...defaultData.stats, ...data.stats }
       };
-      return memoryStore;
-    } catch {
-      // File doesn't exist, use defaults
-      memoryStore = { ...defaultData };
-      return memoryStore;
     }
+  } catch (error) {
+    console.error('Error reading from blob:', error);
+  }
+  return null;
+}
+
+async function saveToBlob(data: any): Promise<boolean> {
+  try {
+    await put(BLOB_KEY, JSON.stringify(data), {
+      access: 'public',
+      addRandomSuffix: false,
+    });
+    return true;
+  } catch (error) {
+    console.error('Error writing to blob:', error);
+    return false;
+  }
+}
+
+export async function readData() {
+  const now = Date.now();
+
+  // Return from cache if fresh
+  if (memoryCache && (now - lastFetch) < CACHE_TTL) {
+    return memoryCache;
   }
 
-  // Serverless: use in-memory only
-  memoryStore = { ...defaultData };
-  return memoryStore;
+  // Try to read from blob
+  const blobData = await fetchFromBlob();
+  if (blobData) {
+    memoryCache = blobData;
+    lastFetch = now;
+    return memoryCache;
+  }
+
+  // First time: initialize with defaults and save
+  memoryCache = { ...defaultData };
+  lastFetch = now;
+  await saveToBlob(memoryCache);
+  return memoryCache;
 }
 
 export async function writeData(data: any) {
-  // Always update memory
-  memoryStore = data;
+  // Update memory cache
+  memoryCache = data;
+  lastFetch = Date.now();
 
-  // Try to write to file (for local dev)
-  if (!isServerless()) {
-    try {
-      const DATA_FILE = path.join(process.cwd(), 'data', 'dashboard-data.json');
-      const dataDir = path.dirname(DATA_FILE);
-      
-      await fs.mkdir(dataDir, { recursive: true });
-      
-      // Write atomically
-      const tempFile = `${DATA_FILE}.tmp`;
-      await fs.writeFile(tempFile, JSON.stringify(data, null, 2), 'utf-8');
-      await fs.rename(tempFile, DATA_FILE);
-      
-      return true;
-    } catch (error) {
-      console.error('Error writing to file:', error);
-      // Still return true since memory was updated
-      return true;
-    }
-  }
-
+  // Persist to blob
+  await saveToBlob(data);
   return true;
 }
 
 // For testing/debugging
 export function getMemoryStore() {
-  return memoryStore;
+  return memoryCache;
 }
 
 export function resetMemoryStore() {
-  memoryStore = { ...defaultData };
-  return memoryStore;
+  memoryCache = { ...defaultData };
+  return memoryCache;
 }
