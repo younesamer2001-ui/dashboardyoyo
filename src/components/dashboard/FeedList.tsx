@@ -3,27 +3,74 @@
 import { cn, timeAgo } from "@/lib/utils";
 import { FeedItem } from "@/lib/types";
 import { Activity, MessageSquare, CheckCircle, AlertTriangle, Cpu } from "lucide-react";
+import { useEffect, useState } from "react";
 
-const typeConfig = {
+const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
+  success: { icon: CheckCircle, color: "text-success", bg: "bg-success/10" },
   task: { icon: CheckCircle, color: "text-success", bg: "bg-success/10" },
+  info: { icon: MessageSquare, color: "text-info", bg: "bg-info/10" },
   message: { icon: MessageSquare, color: "text-info", bg: "bg-info/10" },
-  evaluation: { icon: Activity, color: "text-accent", bg: "bg-accent/10" },
+  warning: { icon: AlertTriangle, color: "text-accent", bg: "bg-accent/10" },
   error: { icon: AlertTriangle, color: "text-error", bg: "bg-error/10" },
   system: { icon: Cpu, color: "text-text-secondary", bg: "bg-text-secondary/10" },
 };
 
 interface FeedListProps {
-  items: FeedItem[];
+  items?: FeedItem[];
   limit?: number;
 }
 
-export default function FeedList({ items, limit }: FeedListProps) {
+export default function FeedList({ items: propItems, limit }: FeedListProps) {
+  const [items, setItems] = useState<FeedItem[]>(propItems || []);
+  const [loading, setLoading] = useState(!propItems);
+
+  // Fetch real data from API
+  useEffect(() => {
+    if (propItems) return; // Use prop items if provided
+
+    const fetchFeed = async () => {
+      try {
+        const res = await fetch('/api/feed?limit=20');
+        const data = await res.json();
+        if (data.success) {
+          // Transform API format to component format
+          const transformed = data.feed.map((item: any) => ({
+            id: item.id,
+            type: item.type,
+            content: item.message,
+            agentName: item.agent?.name || 'System',
+            agentEmoji: item.agent?.icon || '🤖',
+            timestamp: item.timestamp,
+          }));
+          setItems(transformed);
+        }
+      } catch (error) {
+        console.error('Failed to fetch feed:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeed();
+    // Poll every 5 seconds
+    const interval = setInterval(fetchFeed, 5000);
+    return () => clearInterval(interval);
+  }, [propItems]);
+
   const displayItems = limit ? items.slice(0, limit) : items;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
       {displayItems.map((item, index) => {
-        const config = typeConfig[item.type];
+        const config = typeConfig[item.type] || typeConfig.system;
         return (
           <div
             key={item.id}

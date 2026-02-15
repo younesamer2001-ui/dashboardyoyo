@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   CheckCircle,
@@ -11,9 +12,63 @@ import {
 import StatCard from "@/components/dashboard/StatCard";
 import AgentCard from "@/components/dashboard/AgentCard";
 import FeedList from "@/components/dashboard/FeedList";
-import { agents, feedItems, dashboardStats } from "@/lib/mock-data";
+import { Agent } from "@/lib/types";
+
+interface Stats {
+  tasksCompleted: number;
+  activeAgents: number;
+  messagesExchanged: number;
+  uptime: number;
+  todayTasks: number;
+  systemHealth: 'healthy' | 'warning' | 'critical';
+  lastUpdated: string;
+}
 
 export default function OverviewPage() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch stats and agents
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [statsRes, agentsRes] = await Promise.all([
+          fetch('/api/stats'),
+          fetch('/api/agents')
+        ]);
+
+        const statsData = await statsRes.json();
+        const agentsData = await agentsRes.json();
+
+        if (statsData.success) {
+          setStats(statsData.stats);
+        }
+
+        if (agentsData.success) {
+          setAgents(agentsData.agents);
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3rem)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
@@ -31,41 +86,41 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Tasks Today"
-          value={dashboardStats.tasksToday}
+          value={stats?.todayTasks || 0}
           icon={CheckCircle}
           trend={{ value: 12, isPositive: true }}
           color="success"
         />
         <StatCard
           label="Total Tasks"
-          value={dashboardStats.totalTasks.toLocaleString()}
+          value={stats?.tasksCompleted?.toLocaleString() || 0}
           icon={TrendingUp}
           color="accent"
         />
         <StatCard
           label="Active Agents"
-          value={dashboardStats.activeAgents}
+          value={stats?.activeAgents || 0}
           icon={Users}
           color="info"
         />
         <StatCard
           label="Uptime"
-          value={`${dashboardStats.uptime}%`}
+          value={`${stats?.uptime || 99.9}%`}
           icon={Clock}
           color="success"
         />
         <StatCard
           label="Total Messages"
-          value={dashboardStats.messagesTotal.toLocaleString()}
+          value={stats?.messagesExchanged?.toLocaleString() || 0}
           icon={MessageSquare}
           color="info"
         />
         <StatCard
-          label="Evolution Score"
-          value={`${dashboardStats.evolutionScore}/100`}
+          label="System Health"
+          value={stats?.systemHealth === 'healthy' ? 'Good' : stats?.systemHealth === 'warning' ? 'Warn' : 'Critical'}
           icon={TrendingUp}
-          trend={{ value: 5, isPositive: true }}
-          color="accent"
+          trend={{ value: 0, isPositive: stats?.systemHealth === 'healthy' }}
+          color={stats?.systemHealth === 'healthy' ? 'success' : stats?.systemHealth === 'warning' ? 'accent' : 'error'}
         />
       </div>
 
@@ -75,12 +130,16 @@ export default function OverviewPage() {
         <div>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Users className="h-5 w-5 text-accent" />
-            Agent Fleet
+            Agent Fleet ({agents.length})
           </h2>
           <div className="space-y-3">
-            {agents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} compact />
-            ))}
+            {agents.length === 0 ? (
+              <p className="text-text-secondary text-sm">No agents registered yet.</p>
+            ) : (
+              agents.map((agent) => (
+                <AgentCard key={agent.id} agent={agent} compact />
+              ))
+            )}
           </div>
         </div>
 
@@ -90,7 +149,7 @@ export default function OverviewPage() {
             <MessageSquare className="h-5 w-5 text-accent" />
             Live Feed
           </h2>
-          <FeedList items={feedItems} limit={4} />
+          <FeedList limit={4} />
         </div>
       </div>
     </div>

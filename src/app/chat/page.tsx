@@ -4,15 +4,61 @@ import { useState, useRef, useEffect } from "react";
 import { MessageSquare, Send, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "@/lib/types";
-import { chatHistory } from "@/lib/mock-data";
 import { formatTime } from "@/lib/utils";
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastFetchRef = useRef<string | null>(null);
 
+  // Fetch messages from API
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const url = lastFetchRef.current 
+          ? `/api/chat?limit=50&after=${encodeURIComponent(lastFetchRef.current)}`
+          : '/api/chat?limit=50';
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.success) {
+          // Transform API format to component format
+          const transformed = data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.sender === 'agent' ? 'assistant' : 'user',
+            content: msg.text,
+            timestamp: msg.timestamp,
+            agentName: msg.agentName,
+          }));
+          
+          if (transformed.length > 0) {
+            setMessages(prev => {
+              // Merge new messages, avoid duplicates
+              const existingIds = new Set(prev.map(m => m.id));
+              const newMessages = transformed.filter((m: ChatMessage) => !existingIds.has(m.id));
+              return [...prev, ...newMessages];
+            });
+            lastFetchRef.current = new Date().toISOString();
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch messages:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+    // Poll every 3 seconds for new messages
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -20,10 +66,13 @@ export default function ChatPage() {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
+    const text = input.trim();
+    
+    // Optimistically add to UI
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: text,
       timestamp: new Date().toISOString(),
     };
 
@@ -31,20 +80,37 @@ export default function ChatPage() {
     setInput("");
     setIsTyping(true);
 
-    // Simulate Kimi's response (will be replaced with real Telegram integration)
-    setTimeout(() => {
-      const botMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content:
-          "This is a placeholder response. Once the Telegram integration is connected, Kimi will respond here in real-time through your bot.",
-        timestamp: new Date().toISOString(),
-        agentName: "Kimi",
-      };
-      setMessages((prev) => [...prev, botMessage]);
+    // Send to API
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          sender: 'user',
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      // Kimi will respond via Telegram integration (through separate endpoint)
+      // For now, show typing indicator until real response comes through polling
+      
+    } catch (error) {
+      console.error('Failed to send message:', error);
       setIsTyping(false);
-    }, 1500);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3rem)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
@@ -67,6 +133,13 @@ export default function ChatPage() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto rounded-xl border border-border-main bg-bg-card p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary">
+            <Bot className="h-12 w-12 mb-4 opacity-20" />
+            <p>No messages yet. Start the conversation!</p>
+          </div>
+        )}
+        
         {messages.map((msg) => (
           <div
             key={msg.id}

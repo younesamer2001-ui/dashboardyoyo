@@ -1,13 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { Users, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Users, X, Activity } from "lucide-react";
 import AgentCard from "@/components/dashboard/AgentCard";
-import { agents } from "@/lib/mock-data";
 import { Agent } from "@/lib/types";
 
 export default function AgentsPage() {
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch agents from API
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch('/api/agents');
+        const data = await res.json();
+        if (data.success) {
+          setAgents(data.agents);
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAgents();
+    // Refresh every 5 seconds
+    const interval = setInterval(fetchAgents, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3rem)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -24,13 +55,22 @@ export default function AgentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Agent cards */}
         <div className="space-y-4">
-          {agents.map((agent) => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              onClick={() => setSelected(agent)}
-            />
-          ))}
+          {agents.length === 0 ? (
+            <div className="rounded-xl border border-border-main border-dashed bg-bg-card/50 p-12 flex flex-col items-center justify-center text-center">
+              <Activity className="h-10 w-10 text-text-secondary/40 mb-3" />
+              <p className="text-sm text-text-secondary">
+                No agents registered yet. Agents will appear here when they connect.
+              </p>
+            </div>
+          ) : (
+            agents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                onClick={() => setSelected(agent)}
+              />
+            ))
+          )}
         </div>
 
         {/* Detail panel */}
@@ -39,7 +79,7 @@ export default function AgentsPage() {
             <div className="rounded-xl border border-border-main bg-bg-card p-6 sticky top-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{selected.emoji}</span>
+                  <span className="text-2xl">{selected.icon || selected.emoji || '🤖'}</span>
                   <div>
                     <h2 className="text-lg font-bold">{selected.name}</h2>
                     <p className="text-sm text-text-secondary">{selected.role}</p>
@@ -53,33 +93,81 @@ export default function AgentsPage() {
                 </button>
               </div>
 
-              {/* System prompt */}
+              {/* Status */}
               <div className="mb-4">
                 <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-                  System Prompt
+                  Status
                 </label>
-                <textarea
-                  defaultValue={selected.systemPrompt}
-                  rows={5}
-                  className="mt-2 w-full rounded-lg border border-border-main bg-bg-primary p-3 text-sm text-text-primary resize-none focus:outline-none focus:border-accent"
-                />
+                <div className="mt-2 flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${
+                    selected.status === 'active' ? 'bg-success animate-pulse' :
+                    selected.status === 'idle' ? 'bg-warning' :
+                    'bg-error'
+                  }`} />
+                  <span className="text-sm capitalize">{selected.status || 'idle'}</span>
+                </div>
               </div>
 
-              {/* Model */}
-              <div className="mb-4">
-                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-                  Model
-                </label>
-                <p className="mt-1 text-sm font-mono text-accent-light">{selected.model}</p>
-              </div>
-
-              {/* Evaluation time */}
-              {selected.evaluationTime && (
+              {/* Current Task */}
+              {selected.currentTask && (
                 <div className="mb-4">
                   <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Daily Evaluation
+                    Current Task
                   </label>
-                  <p className="mt-1 text-sm">{selected.evaluationTime}</p>
+                  <p className="mt-1 text-sm text-text-primary">{selected.currentTask}</p>
+                </div>
+              )}
+
+              {/* System prompt - if available */}
+              {selected.systemPrompt && (
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
+                    System Prompt
+                  </label>
+                  <textarea
+                    defaultValue={selected.systemPrompt}
+                    rows={5}
+                    className="mt-2 w-full rounded-lg border border-border-main bg-bg-primary p-3 text-sm text-text-primary resize-none focus:outline-none focus:border-accent"
+                  />
+                </div>
+              )}
+
+              {/* Model */}
+              {selected.model && (
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
+                    Model
+                  </label>
+                  <p className="mt-1 text-sm font-mono text-accent-light">{selected.model}</p>
+                </div>
+              )}
+
+              {/* Last Active */}
+              {selected.lastActive && (
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
+                    Last Active
+                  </label>
+                  <p className="mt-1 text-sm">
+                    {new Date(selected.lastActive).toLocaleString()}
+                  </p>
+                </div>
+              )}
+
+              {/* Metrics */}
+              {selected.metrics && Object.keys(selected.metrics).length > 0 && (
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
+                    Metrics
+                  </label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {Object.entries(selected.metrics).map(([key, value]) => (
+                      <div key={key} className="rounded-lg bg-bg-primary p-2">
+                        <p className="text-[10px] text-text-secondary uppercase">{key}</p>
+                        <p className="text-sm font-medium">{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
