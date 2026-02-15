@@ -20,30 +20,30 @@ export default function OverviewPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <LayoutDashboard className="h-6 w-6 text-accent" />
-          Oversikt
+          Overview
         </h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Velkommen tilbake, Younes. Her er statusen til AI-teamet ditt.
+          Welcome back, Younes. Here is the status of your AI team.
         </p>
       </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatCard
-          label="Oppgaver i dag"
+          label="Tasks Today"
           value={dashboardStats.tasksToday}
           icon={CheckCircle}
           trend={{ value: 12, isPositive: true }}
           color="success"
         />
         <StatCard
-          label="Totale oppgaver"
+          label="Total Tasks"
           value={dashboardStats.totalTasks.toLocaleString()}
           icon={TrendingUp}
           color="accent"
         />
         <StatCard
-          label="Aktive agenter"
+          label="Active Agents"
           value={dashboardStats.activeAgents}
           icon={Users}
           color="info"
@@ -55,7 +55,7 @@ export default function OverviewPage() {
           color="success"
         />
         <StatCard
-          label="Meldinger totalt"
+          label="Total Messages"
           value={dashboardStats.messagesTotal.toLocaleString()}
           icon={MessageSquare}
           color="info"
