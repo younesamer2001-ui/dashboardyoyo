@@ -118,11 +118,11 @@ export default function OverviewPage() {
           ? "Warn" 
           : "Critical",
       icon: Activity,
-      color: stats?.systemHealth === "healthy" 
-        ? "success" 
-        : stats?.systemHealth === "warning" 
-          ? "warning" 
-          : "error" as const,
+      color: (stats?.systemHealth === "healthy"
+        ? "success"
+        : stats?.systemHealth === "warning"
+          ? "warning"
+          : "info") as "success" | "warning" | "info",
     },
   ];
 
@@ -171,7 +171,7 @@ export default function OverviewPage() {
                     id: agent.id,
                     name: agent.name,
                     role: agent.role || "Agent",
-                    emoji: agent.icon || agent.emoji || "🤖",
+                    emoji: agent.icon || agent.emoji || "K",
                     status: agent.status === "active" ? "online" : "idle",
                     health: 100,
                     lastActive: agent.lastActive || new Date().toISOString(),
