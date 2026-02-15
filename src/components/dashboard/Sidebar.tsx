@@ -14,11 +14,11 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Oversikt", icon: LayoutDashboard },
-  { href: "/agents", label: "Agenter", icon: Users },
-  { href: "/brain", label: "Hjerne", icon: Brain },
+  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/agents", label: "Agents", icon: Users },
+  { href: "/brain", label: "Brain", icon: Brain },
   { href: "/feed", label: "Feed", icon: Activity },
-  { href: "/chat", label: "Chat med Kimi", icon: MessageSquare },
+  { href: "/chat", label: "Chat with Kimi", icon: MessageSquare },
 ];
 
 export default function Sidebar() {
@@ -73,7 +73,7 @@ export default function Sidebar() {
         </div>
         <div className="mt-2 flex items-center gap-2">
           <span className="text-[11px] text-text-secondary">
-            2 agenter aktive
+            2 agents active
           </span>
         </div>
       </div>
