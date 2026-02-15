@@ -97,7 +97,7 @@ export default function AgentCard({ agent, compact = false, onClick }: AgentCard
       {/* Footer */}
       <p className="mt-3 text-[11px] text-text-secondary">
         Last active: {timeAgo(agent.lastActive)}
-        {agent.evaluationTime && ` Â· Eval: ${agent.evaluationTime}`}
+        {agent.evaluationTime && ` | Eval: ${agent.evaluationTime}`}
       </p>
     </div>
   );
