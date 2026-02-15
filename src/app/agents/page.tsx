@@ -43,7 +43,8 @@ export default function AgentsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: selected.id,
+          agentId: selected.id,
+          status: selected.status || 'active',
           systemPrompt: promptRef.current.value,
         }),
       });
@@ -66,7 +67,7 @@ export default function AgentsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: selected.id,
+          agentId: selected.id,
           status: 'active',
           currentTask: 'Restarting...',
           lastActive: new Date().toISOString(),
