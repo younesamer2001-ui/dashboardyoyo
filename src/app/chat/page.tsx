@@ -53,10 +53,10 @@ export default function ChatPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <MessageSquare className="h-6 w-6 text-accent" />
-            Chat med Kimi
+            Chat with Kimi
           </h1>
           <p className="mt-1 text-sm text-text-secondary">
-            Snakk direkte med Kimi â din AI CEO og coach.
+            Talk directly with Kimi - your AI CEO and coach.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -133,7 +133,7 @@ export default function ChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-          placeholder="Skriv en melding til Kimi..."
+          placeholder="Type a message to Kimi..."
           className="flex-1 rounded-xl border border-border-main bg-bg-card px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent"
         />
         <button
