@@ -8,11 +8,11 @@ import {
   Clock,
   MessageSquare,
   TrendingUp,
+  Activity,
 } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import AgentCard from "@/components/dashboard/AgentCard";
 import FeedList from "@/components/dashboard/FeedList";
-import { Agent } from "@/lib/types";
 
 interface Stats {
   tasksCompleted: number;
@@ -20,8 +20,18 @@ interface Stats {
   messagesExchanged: number;
   uptime: number;
   todayTasks: number;
-  systemHealth: 'healthy' | 'warning' | 'critical';
-  lastUpdated: string;
+  systemHealth: "healthy" | "warning" | "critical";
+}
+
+interface Agent {
+  id: string;
+  name: string;
+  role?: string;
+  icon?: string;
+  emoji?: string;
+  status: "active" | "idle" | "error" | string;
+  currentTask?: string | null;
+  lastActive?: string;
 }
 
 export default function OverviewPage() {
@@ -29,35 +39,35 @@ export default function OverviewPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch stats and agents
+  // Fetch stats and agents every 5 seconds
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [statsRes, agentsRes] = await Promise.all([
-          fetch('/api/stats'),
-          fetch('/api/agents')
+          fetch("/api/stats"),
+          fetch("/api/agents"),
         ]);
 
-        const statsData = await statsRes.json();
-        const agentsData = await agentsRes.json();
+        const [statsData, agentsData] = await Promise.all([
+          statsRes.json(),
+          agentsRes.json(),
+        ]);
 
         if (statsData.success) {
           setStats(statsData.stats);
         }
-
         if (agentsData.success) {
           setAgents(agentsData.agents);
         }
       } catch (error) {
-        console.error('Failed to fetch data:', error);
+        console.error("Failed to fetch data:", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-    // Refresh every 10 seconds
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -69,6 +79,53 @@ export default function OverviewPage() {
     );
   }
 
+  const statItems = [
+    {
+      label: "Tasks Today",
+      value: stats?.todayTasks || 0,
+      icon: CheckCircle,
+      color: "success" as const,
+    },
+    {
+      label: "Total Tasks",
+      value: stats?.tasksCompleted || 0,
+      icon: TrendingUp,
+      color: "accent" as const,
+    },
+    {
+      label: "Active Agents",
+      value: stats?.activeAgents || 0,
+      icon: Users,
+      color: "info" as const,
+    },
+    {
+      label: "Uptime",
+      value: `${stats?.uptime || 99.9}%`,
+      icon: Clock,
+      color: "success" as const,
+    },
+    {
+      label: "Messages",
+      value: stats?.messagesExchanged || 0,
+      icon: MessageSquare,
+      color: "info" as const,
+    },
+    {
+      label: "Health",
+      value: stats?.systemHealth === "healthy" 
+        ? "Good" 
+        : stats?.systemHealth === "warning" 
+          ? "Warn" 
+          : "Critical",
+      icon: Activity,
+      color: stats?.systemHealth === "healthy" 
+        ? "success" 
+        : stats?.systemHealth === "warning" 
+          ? "warning" 
+          : "error" as const,
+    },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
@@ -77,51 +134,22 @@ export default function OverviewPage() {
           <LayoutDashboard className="h-6 w-6 text-accent" />
           Overview
         </h1>
-        <p className="mt-1 text-sm text-text-secondary">
+        <p className="mt-1 text-sm text-gray-400">
           Welcome back, Younes. Here is the status of your AI team.
         </p>
       </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        <StatCard
-          label="Tasks Today"
-          value={stats?.todayTasks || 0}
-          icon={CheckCircle}
-          trend={{ value: 12, isPositive: true }}
-          color="success"
-        />
-        <StatCard
-          label="Total Tasks"
-          value={stats?.tasksCompleted?.toLocaleString() || 0}
-          icon={TrendingUp}
-          color="accent"
-        />
-        <StatCard
-          label="Active Agents"
-          value={stats?.activeAgents || 0}
-          icon={Users}
-          color="info"
-        />
-        <StatCard
-          label="Uptime"
-          value={`${stats?.uptime || 99.9}%`}
-          icon={Clock}
-          color="success"
-        />
-        <StatCard
-          label="Total Messages"
-          value={stats?.messagesExchanged?.toLocaleString() || 0}
-          icon={MessageSquare}
-          color="info"
-        />
-        <StatCard
-          label="System Health"
-          value={stats?.systemHealth === 'healthy' ? 'Good' : stats?.systemHealth === 'warning' ? 'Warn' : 'Critical'}
-          icon={TrendingUp}
-          trend={{ value: 0, isPositive: stats?.systemHealth === 'healthy' }}
-          color={stats?.systemHealth === 'healthy' ? 'success' : stats?.systemHealth === 'warning' ? 'accent' : 'error'}
-        />
+        {statItems.map((stat) => (
+          <StatCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            icon={stat.icon}
+            color={stat.color}
+          />
+        ))}
       </div>
 
       {/* Two-column layout: Agents + Feed */}
@@ -134,10 +162,24 @@ export default function OverviewPage() {
           </h2>
           <div className="space-y-3">
             {agents.length === 0 ? (
-              <p className="text-text-secondary text-sm">No agents registered yet.</p>
+              <p className="text-gray-400 text-sm">No agents registered yet.</p>
             ) : (
               agents.map((agent) => (
-                <AgentCard key={agent.id} agent={agent} compact />
+                <AgentCard
+                  key={agent.id}
+                  agent={{
+                    id: agent.id,
+                    name: agent.name,
+                    role: agent.role || "Agent",
+                    emoji: agent.icon || agent.emoji || "🤖",
+                    status: agent.status === "active" ? "online" : "idle",
+                    health: 100,
+                    lastActive: agent.lastActive || new Date().toISOString(),
+                    tasksCompleted: 0,
+                    tasksToday: 0,
+                  }}
+                  compact
+                />
               ))
             )}
           </div>
@@ -149,7 +191,7 @@ export default function OverviewPage() {
             <MessageSquare className="h-5 w-5 text-accent" />
             Live Feed
           </h2>
-          <FeedList limit={4} />
+          <FeedList limit={6} />
         </div>
       </div>
     </div>
