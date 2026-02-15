@@ -14,10 +14,10 @@ export default function AgentsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Users className="h-6 w-6 text-accent" />
-          Agenter
+          Agents
         </h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Administrer AI-agentene dine. Klikk pÃ¥ en agent for detaljer.
+          Manage your AI agents. Click on an agent for details.
         </p>
       </div>
 
@@ -77,7 +77,7 @@ export default function AgentsPage() {
               {selected.evaluationTime && (
                 <div className="mb-4">
                   <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Daglig evaluering
+                    Daily Evaluation
                   </label>
                   <p className="mt-1 text-sm">{selected.evaluationTime}</p>
                 </div>
@@ -86,7 +86,7 @@ export default function AgentsPage() {
               {/* Actions */}
               <div className="flex gap-2 mt-6">
                 <button className="flex-1 rounded-lg bg-accent/15 text-accent py-2 text-sm font-medium hover:bg-accent/25 transition-colors">
-                  Lagre endringer
+                  Save Changes
                 </button>
                 <button className="rounded-lg border border-border-main px-4 py-2 text-sm text-text-secondary hover:bg-bg-card-hover transition-colors">
                   Restart
@@ -97,7 +97,7 @@ export default function AgentsPage() {
             <div className="rounded-xl border border-border-main border-dashed bg-bg-card/50 p-12 flex flex-col items-center justify-center text-center">
               <Users className="h-10 w-10 text-text-secondary/40 mb-3" />
               <p className="text-sm text-text-secondary">
-                Velg en agent for Ã¥ se detaljer og redigere prompt
+                Select an agent to view details and edit prompt
               </p>
             </div>
           )}
