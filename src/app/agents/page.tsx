@@ -1,7 +1,6 @@
 "use client";
-
-import { useState, useEffect } from "react";
-import { Users, X, Activity } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Users, X, Activity, Check, RotateCcw } from "lucide-react";
 import AgentCard from "@/components/dashboard/AgentCard";
 import { Agent } from "@/lib/types";
 
@@ -9,6 +8,10 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch agents from API
   useEffect(() => {
@@ -27,10 +30,55 @@ export default function AgentsPage() {
     };
 
     fetchAgents();
-    // Refresh every 5 seconds
     const interval = setInterval(fetchAgents, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleSave = async () => {
+    if (!selected || !promptRef.current) return;
+    setSaving(true);
+    setSaveSuccess(false);
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selected.id,
+          systemPrompt: promptRef.current.value,
+        }),
+      });
+      if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+      }
+    } catch (error) {
+      console.error('Failed to save:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRestart = async () => {
+    if (!selected) return;
+    setRestarting(true);
+    try {
+      await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selected.id,
+          status: 'active',
+          currentTask: 'Restarting...',
+          lastActive: new Date().toISOString(),
+        }),
+      });
+      // Brief visual feedback
+      setTimeout(() => setRestarting(false), 1500);
+    } catch (error) {
+      console.error('Failed to restart:', error);
+      setRestarting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -79,7 +127,7 @@ export default function AgentsPage() {
             <div className="rounded-xl border border-border-main bg-bg-card p-6 sticky top-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{selected.icon || selected.emoji || '🤖'}</span>
+                  <span className="text-2xl">{selected.icon || selected.emoji || 'K'}</span>
                   <div>
                     <h2 className="text-lg font-bold">{selected.name}</h2>
                     <p className="text-sm text-text-secondary">{selected.role}</p>
@@ -101,8 +149,7 @@ export default function AgentsPage() {
                 <div className="mt-2 flex items-center gap-2">
                   <div className={`h-2 w-2 rounded-full ${
                     selected.status === 'active' ? 'bg-success animate-pulse' :
-                    selected.status === 'idle' ? 'bg-warning' :
-                    'bg-error'
+                    selected.status === 'idle' ? 'bg-warning' : 'bg-error'
                   }`} />
                   <span className="text-sm capitalize">{selected.status || 'idle'}</span>
                 </div>
@@ -118,13 +165,14 @@ export default function AgentsPage() {
                 </div>
               )}
 
-              {/* System prompt - if available */}
+              {/* System prompt */}
               {selected.systemPrompt && (
                 <div className="mb-4">
                   <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">
                     System Prompt
                   </label>
                   <textarea
+                    ref={promptRef}
                     defaultValue={selected.systemPrompt}
                     rows={5}
                     className="mt-2 w-full rounded-lg border border-border-main bg-bg-primary p-3 text-sm text-text-primary resize-none focus:outline-none focus:border-accent"
@@ -173,11 +221,26 @@ export default function AgentsPage() {
 
               {/* Actions */}
               <div className="flex gap-2 mt-6">
-                <button className="flex-1 rounded-lg bg-accent/15 text-accent py-2 text-sm font-medium hover:bg-accent/25 transition-colors">
-                  Save Changes
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 rounded-lg bg-accent/15 text-accent py-2 text-sm font-medium hover:bg-accent/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {saveSuccess ? (
+                    <><Check className="h-4 w-4" /> Saved!</>
+                  ) : saving ? (
+                    <><div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" /> Saving...</>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
-                <button className="rounded-lg border border-border-main px-4 py-2 text-sm text-text-secondary hover:bg-bg-card-hover transition-colors">
-                  Restart
+                <button
+                  onClick={handleRestart}
+                  disabled={restarting}
+                  className="rounded-lg border border-border-main px-4 py-2 text-sm text-text-secondary hover:bg-bg-card-hover transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <RotateCcw className={`h-3.5 w-3.5 ${restarting ? 'animate-spin' : ''}`} />
+                  {restarting ? 'Restarting...' : 'Restart'}
                 </button>
               </div>
             </div>
@@ -194,3 +257,4 @@ export default function AgentsPage() {
     </div>
   );
 }
+
