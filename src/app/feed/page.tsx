@@ -13,7 +13,7 @@ export default function FeedPage() {
           Live Feed
         </h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Sanntidsaktivitet fra alle agenter.
+          Real-time activity from all agents.
         </p>
       </div>
 
