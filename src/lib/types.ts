@@ -53,7 +53,7 @@ export interface FeedItem {
   agentId?: string;
   agentName: string;
   agentEmoji: string;
-  type: "task" | "message" | "evaluation" | "error" | "system" | "success" | "info" | "warning" | "alert" | "memory" | "scout";
+  type: "task" | "message" | "evaluation" | "error" | "system" | "success" | "info" | "warning" | "alert" | "memory" | "scout" | "evolution";
   content: string;
   timestamp: string;
 }
@@ -100,7 +100,7 @@ export interface MemoryFact {
   entity: string;
   predicate: string;
   object: string;
-  source: "chat" | "user_input" | "system" | "extraction";
+  source: "chat" | "user_input" | "system" | "extraction" | "evolution";
   confidence: number;
   extractedAt: string;
   lastMentioned: string;
@@ -175,6 +175,37 @@ export interface Scouts {
   alerts: ScoutAlert[];
 }
 
+// ==========================================
+// EVOLUTION SYSTEM TYPES
+// ==========================================
+
+export interface EvolutionIdea {
+  id: string;
+  category: "memory" | "monitor" | "dashboard" | "workflow";
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  status: "pending" | "applied" | "rejected";
+  actionBlocks: { type: string; action: string; params: any }[];
+  suggestedAt: string;
+  hash: string;
+}
+
+export interface EvolutionAction {
+  id: string;
+  ideaId: string;
+  type: "auto_applied" | "user_approved" | "rejected";
+  executedAt: string;
+  summary: string;
+}
+
+export interface Evolution {
+  ideas: EvolutionIdea[];
+  history: EvolutionAction[];
+  lastRun: string;
+  hashes: string[];
+}
+
 // Full data model
 export interface DashboardData {
   dashboard: {
@@ -202,4 +233,5 @@ export interface DashboardData {
   memory: Memory;
   scouts: Scouts;
   agent_executions: AgentExecution[];
+  evolution: Evolution;
 }
