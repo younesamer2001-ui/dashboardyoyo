@@ -9,14 +9,22 @@ interface Agent {
   id: string;
   name: string;
   role: string;
-  emoji: string;
-  status: AgentStatus;
-  health: number;
-  lastActive: string;
-  tasksCompleted: number;
-  tasksToday: number;
+  icon?: string;
+  emoji?: string;
+  status: AgentStatus | string;
+  health?: number;
+  lastActive?: string;
+  tasksCompleted?: number;
+  tasksToday?: number;
   currentTask?: string | null;
   evaluationTime?: string;
+  systemPrompt?: string;
+  model?: string;
+  metrics?: Record<string, any>;
+  updatedAt?: string;
+  capabilities?: any[];
+  tools?: any[];
+  files?: any[];
 }
 
 const statusConfig: Record<AgentStatus, { label: string; color: string; dot: string; glow: string }> = {
@@ -47,8 +55,12 @@ interface AgentCardProps {
 }
 
 export default function AgentCard({ agent, compact = false, onClick }: AgentCardProps) {
-  const status = statusConfig[agent.status] || statusConfig.idle;
-  const isAlive = agent.status === "online" || agent.status === "active" || agent.status === "working";
+  const agentStatus = (agent.status || "idle") as AgentStatus;
+  const status = statusConfig[agentStatus] || statusConfig.idle;
+  const isAlive = agentStatus === "online" || agentStatus === "active" || agentStatus === "working";
+  const health = agent.health ?? 100;
+  const lastActive = agent.lastActive || new Date().toISOString();
+  const emoji = agent.emoji || agent.icon || "K";
 
   if (compact) {
     return (
@@ -60,7 +72,7 @@ export default function AgentCard({ agent, compact = false, onClick }: AgentCard
         )}
       >
         <div className="relative">
-          <span className="text-xl">{agent.emoji || "K"}</span>
+          <span className="text-xl">{emoji}</span>
           {isAlive && (
             <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
@@ -79,7 +91,7 @@ export default function AgentCard({ agent, compact = false, onClick }: AgentCard
             <div className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
             <span className={cn("text-[10px] font-medium", status.color)}>{status.label}</span>
           </div>
-          <span className="text-[9px] text-gray-600">{timeAgo(agent.lastActive)}</span>
+          <span className="text-[9px] text-gray-600">{timeAgo(lastActive)}</span>
         </div>
       </div>
     );
@@ -96,7 +108,7 @@ export default function AgentCard({ agent, compact = false, onClick }: AgentCard
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-xl">
-            {agent.emoji || "K"}
+            {emoji}
             {isAlive && (
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
@@ -125,18 +137,18 @@ export default function AgentCard({ agent, compact = false, onClick }: AgentCard
         <div className="flex items-center justify-between text-xs">
           <span className="text-text-secondary">Health</span>
           <span className={cn(
-            agent.health > 80 ? "text-success" : agent.health > 50 ? "text-warning" : "text-red-400"
+            health > 80 ? "text-success" : health > 50 ? "text-warning" : "text-red-400"
           )}>
-            {agent.health}%
+            {health}%
           </span>
         </div>
         <div className="mt-1.5 h-1.5 w-full rounded-full bg-bg-primary overflow-hidden">
           <div
             className={cn(
               "h-full rounded-full transition-all duration-1000 ease-out",
-              agent.health > 80 ? "bg-success" : agent.health > 50 ? "bg-warning" : "bg-red-400"
+              health > 80 ? "bg-success" : health > 50 ? "bg-warning" : "bg-red-400"
             )}
-            style={{ width: `${agent.health}%` }}
+            style={{ width: `${health}%` }}
           />
         </div>
       </div>
@@ -153,7 +165,7 @@ export default function AgentCard({ agent, compact = false, onClick }: AgentCard
       </div>
 
       <p className="mt-2 text-[10px] text-text-secondary">
-        Last active: {timeAgo(agent.lastActive)}
+        Last active: {timeAgo(lastActive)}
       </p>
     </div>
   );
