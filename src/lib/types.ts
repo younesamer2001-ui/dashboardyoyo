@@ -19,6 +19,7 @@ export interface Agent {
   updatedAt?: string;
   capabilities?: AgentCapability[];
   tools?: AgentTool[];
+  files?: { name: string; url: string; size: number }[];
 }
 
 export interface AgentCapability {
