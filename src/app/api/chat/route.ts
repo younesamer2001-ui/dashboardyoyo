@@ -578,7 +578,7 @@ export async function POST(request: NextRequest) {
         // Add Kimi's reply
         const kimiMsg = {
             id: 'msg-' + (Date.now() + 1),
-            sender: 'kimi',
+            sender: 'agent',
             text: finalReply,
             timestamp: new Date().toISOString(),
         };
