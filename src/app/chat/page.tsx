@@ -8,7 +8,7 @@ import { formatTime } from "@/lib/utils";
 interface ChatMessage {
   id: string;
   text: string;
-  sender: "user" | "agent";
+  sender: "user" | "agent" | "kimi";
   agentName?: string;
   agentIcon?: string;
   timestamp: string;
@@ -27,7 +27,7 @@ export default function ChatPage() {
       try {
         const res = await fetch("/api/chat?limit=50");
         const data = await res.json();
-        if (data.success) {
+        if (data.messages) {
           setMessages(data.messages);
         }
       } catch (error) {
@@ -47,6 +47,9 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const isUserMessage = (msg: ChatMessage) => msg.sender === "user";
+  const isBotMessage = (msg: ChatMessage) => msg.sender === "agent" || msg.sender === "kimi";
+
   const sendMessage = async () => {
     if (!input.trim()) return;
 
@@ -54,34 +57,51 @@ export default function ChatPage() {
     setInput("");
     setIsTyping(true);
 
+    // Optimistically add user message to UI
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      text,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          sender: "user",
-          agentId: "user",
-        }),
+        body: JSON.stringify({ message: text }),
       });
 
       if (!res.ok) {
         throw new Error("Failed to send");
       }
 
-      // Optimistically add to UI
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        text,
-        sender: "user",
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, newMessage]);
+      const data = await res.json();
 
-      // Clear typing after a moment
-      setTimeout(() => setIsTyping(false), 1000);
+      // Add Kimi's reply to UI
+      if (data.reply) {
+        const kimiMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          text: data.reply,
+          sender: "agent",
+          agentName: "Kimi",
+          timestamp: data.timestamp || new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, kimiMsg]);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
+      // Add error message
+      const errMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I couldn't process that. Please try again.",
+        sender: "agent",
+        agentName: "Kimi",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
       setIsTyping(false);
     }
   };
@@ -127,10 +147,10 @@ export default function ChatPage() {
             key={msg.id}
             className={cn(
               "flex gap-3",
-              msg.sender === "user" ? "justify-end" : "justify-start"
+              isUserMessage(msg) ? "justify-end" : "justify-start"
             )}
           >
-            {msg.sender === "agent" && (
+            {isBotMessage(msg) && (
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10">
                 <Bot className="h-4 w-4 text-accent" />
               </div>
@@ -138,7 +158,7 @@ export default function ChatPage() {
             <div
               className={cn(
                 "max-w-[75%] rounded-xl px-4 py-3",
-                msg.sender === "user"
+                isUserMessage(msg)
                   ? "bg-accent/20 text-white"
                   : "bg-white/10 text-white"
               )}
@@ -149,7 +169,7 @@ export default function ChatPage() {
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
               <p className="text-[10px] text-gray-400 mt-1">{formatTime(msg.timestamp)}</p>
             </div>
-            {msg.sender === "user" && (
+            {isUserMessage(msg) && (
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
                 <User className="h-4 w-4 text-gray-400" />
               </div>
