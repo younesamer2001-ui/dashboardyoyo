@@ -62,7 +62,7 @@ export default function FeedList({ limit = 20 }: FeedListProps) {
         const res = await fetch("/api/feed?limit=" + limit);
         const data = await res.json();
         if (data.success && Array.isArray(data.feed)) {
-          const incomingIds = new Set(data.feed.map((f: FeedItem) => f.id));
+          const incomingIds = new Set<string>(data.feed.map((f: FeedItem) => f.id));
           
           if (!isFirstLoad.current) {
             const brandNew = new Set<string>();
