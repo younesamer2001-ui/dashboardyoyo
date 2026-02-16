@@ -6,7 +6,7 @@ import AgentCard from "@/components/dashboard/AgentCard";
 import { Agent } from "@/lib/types";
 
 interface AgentFile {
-  name: string;
+  name: string;x
   url: string;
   size: number;
 }
