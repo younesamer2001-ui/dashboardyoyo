@@ -1,32 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
-  MessageSquare,
-  Send,
-  Bot,
-  User,
-  Plus,
-  Paperclip,
-  Upload,
-  X,
-  FileText,
-  Image,
-  File,
-  ChevronDown,
-  Zap,
-  Brain,
-  Search,
-  Globe,
-  Sparkles,
-  Clock,
-  CheckCheck,
-  Wifi,
-  WifiOff,
+  MessageSquare, Send, Bot, User, Plus, Paperclip, Upload, X,
+  FileText, Image, File, Search, ArrowDown, Copy, Check,
+  Mic, MicOff, Sparkles, Zap, ChevronDown, Clock, Hash,
+  Code, Link2, Bold, Italic, List
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/utils";
 
+/* ─── Types ─── */
 interface ChatMessage {
   id: string;
   text: string;
@@ -35,6 +19,8 @@ interface ChatMessage {
   agentIcon?: string;
   timestamp: string;
   attachments?: AttachedFile[];
+  reactions?: string[];
+  streaming?: boolean;
 }
 
 interface AttachedFile {
@@ -45,6 +31,7 @@ interface AttachedFile {
   uploading?: boolean;
 }
 
+/* ─── Helpers ─── */
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
@@ -53,107 +40,252 @@ function formatFileSize(bytes: number): string {
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return Image;
-  if (type.includes("pdf") || type.includes("document") || type.includes("text"))
-    return FileText;
+  if (type.includes("pdf") || type.includes("document") || type.includes("text")) return FileText;
   return File;
 }
 
-// Simple markdown-ish renderer for Kimi responses
-function renderMessageText(text: string) {
-  // Split by code blocks first
-  const parts = text.split(/(```[\s\S]*?```)/g);
+function getDateLabel(timestamp: string): string {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
 
-  return parts.map((part, i) => {
-    // Code blocks
-    if (part.startsWith("```") && part.endsWith("```")) {
-      const inner = part.slice(3, -3);
-      const newlineIdx = inner.indexOf("\n");
-      const code = newlineIdx >= 0 ? inner.slice(newlineIdx + 1) : inner;
-      return (
-        <pre
-          key={i}
-          className="my-2 rounded-lg bg-black/30 border border-white/5 p-3 text-xs font-mono overflow-x-auto"
-        >
-          <code>{code}</code>
-        </pre>
-      );
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
+/* ─── Markdown Renderer ─── */
+function renderMarkdown(text: string) {
+  const lines = text.split("\n");
+  const elements: JSX.Element[] = [];
+  let inCodeBlock = false;
+  let codeBuffer: string[] = [];
+  let codeLang = "";
+
+  lines.forEach((line, lineIdx) => {
+    // Code block start/end
+    if (line.trim().startsWith("```")) {
+      if (inCodeBlock) {
+        elements.push(
+          <div key={`code-${lineIdx}`} className="my-3 rounded-lg overflow-hidden border border-white/10">
+            {codeLang && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/10">
+                <span className="text-[10px] font-mono text-accent/70 uppercase tracking-wider">{codeLang}</span>
+                <CopyButton text={codeBuffer.join("\n")} size="sm" />
+              </div>
+            )}
+            <pre className="p-3 overflow-x-auto bg-black/30">
+              <code className="text-xs font-mono text-gray-300 leading-relaxed">{codeBuffer.join("\n")}</code>
+            </pre>
+          </div>
+        );
+        codeBuffer = [];
+        codeLang = "";
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+        codeLang = line.trim().slice(3).trim();
+      }
+      return;
     }
 
-    // Inline formatting
-    const lines = part.split("\n");
-    return (
-      <span key={i}>
-        {lines.map((line, j) => {
-          // Bold
-          let formatted: React.ReactNode = line;
-          const boldParts = line.split(/(\*\*.*?\*\*)/g);
-          if (boldParts.length > 1) {
-            formatted = boldParts.map((bp, k) =>
-              bp.startsWith("**") && bp.endsWith("**") ? (
-                <strong key={k} className="font-semibold text-white">
-                  {bp.slice(2, -2)}
-                </strong>
-              ) : (
-                <span key={k}>{bp}</span>
-              )
-            );
-          }
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      return;
+    }
 
-          // Check marks from command processing
-          if (line.startsWith("\u2705 ")) {
-            return (
-              <span key={j} className="flex items-center gap-1.5 text-green-400 text-xs mt-1">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
-                {line.slice(2)}
-                {j < lines.length - 1 && <br />}
-              </span>
-            );
-          }
+    // Empty line
+    if (!line.trim()) {
+      elements.push(<div key={`br-${lineIdx}`} className="h-2" />);
+      return;
+    }
 
-          return (
-            <span key={j}>
-              {formatted}
-              {j < lines.length - 1 && <br />}
-            </span>
-          );
-        })}
-      </span>
+    // Headers
+    if (line.startsWith("### ")) {
+      elements.push(<h4 key={`h3-${lineIdx}`} className="text-sm font-bold text-white mt-3 mb-1">{renderInline(line.slice(4))}</h4>);
+      return;
+    }
+    if (line.startsWith("## ")) {
+      elements.push(<h3 key={`h2-${lineIdx}`} className="text-base font-bold text-white mt-3 mb-1">{renderInline(line.slice(3))}</h3>);
+      return;
+    }
+    if (line.startsWith("# ")) {
+      elements.push(<h2 key={`h1-${lineIdx}`} className="text-lg font-bold text-white mt-3 mb-1">{renderInline(line.slice(2))}</h2>);
+      return;
+    }
+
+    // Bullet list
+    if (line.match(/^\s*[-*]\s/)) {
+      const content = line.replace(/^\s*[-*]\s/, "");
+      elements.push(
+        <div key={`li-${lineIdx}`} className="flex gap-2 ml-2 my-0.5">
+          <span className="text-accent mt-1.5 text-[8px]">●</span>
+          <span className="text-sm leading-relaxed">{renderInline(content)}</span>
+        </div>
+      );
+      return;
+    }
+
+    // Numbered list
+    if (line.match(/^\s*\d+\.\s/)) {
+      const match = line.match(/^\s*(\d+)\.\s(.*)/)!;
+      elements.push(
+        <div key={`ol-${lineIdx}`} className="flex gap-2 ml-2 my-0.5">
+          <span className="text-accent/70 text-xs font-mono min-w-[18px]">{match[1]}.</span>
+          <span className="text-sm leading-relaxed">{renderInline(match[2])}</span>
+        </div>
+      );
+      return;
+    }
+
+    // Blockquote
+    if (line.startsWith("> ")) {
+      elements.push(
+        <div key={`bq-${lineIdx}`} className="border-l-2 border-accent/40 pl-3 my-1 text-sm text-gray-300 italic">
+          {renderInline(line.slice(2))}
+        </div>
+      );
+      return;
+    }
+
+    // Horizontal rule
+    if (line.match(/^---+$/)) {
+      elements.push(<hr key={`hr-${lineIdx}`} className="border-white/10 my-3" />);
+      return;
+    }
+
+    // Regular paragraph
+    elements.push(
+      <p key={`p-${lineIdx}`} className="text-sm leading-relaxed my-0.5">{renderInline(line)}</p>
     );
   });
+
+  // Handle unclosed code block
+  if (inCodeBlock && codeBuffer.length > 0) {
+    elements.push(
+      <pre key="code-unclosed" className="my-3 p-3 rounded-lg bg-black/30 border border-white/10 overflow-x-auto">
+        <code className="text-xs font-mono text-gray-300">{codeBuffer.join("\n")}</code>
+      </pre>
+    );
+  }
+
+  return elements;
 }
 
-// Relative time that auto-updates
-function RelativeTime({ timestamp }: { timestamp: string }) {
-  const [, setTick] = useState(0);
+function renderInline(text: string): (string | JSX.Element)[] {
+  const parts: (string | JSX.Element)[] = [];
+  // Process inline markdown: **bold**, *italic*, `code`, [link](url)
+  const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1]) {
+      // Bold
+      parts.push(<strong key={`b-${key++}`} className="font-semibold text-white">{match[2]}</strong>);
+    } else if (match[3]) {
+      // Italic
+      parts.push(<em key={`i-${key++}`} className="italic text-gray-200">{match[4]}</em>);
+    } else if (match[5]) {
+      // Inline code
+      parts.push(
+        <code key={`c-${key++}`} className="px-1.5 py-0.5 rounded bg-white/10 text-accent text-xs font-mono">{match[6]}</code>
+      );
+    } else if (match[7]) {
+      // Link
+      parts.push(
+        <a key={`a-${key++}`} href={match[9]} target="_blank" rel="noopener noreferrer"
+          className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors">
+          {match[8]}
+        </a>
+      );
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts;
+}
+
+/* ─── Copy Button ─── */
+function CopyButton({ text, size = "md" }: { text: string; size?: "sm" | "md" }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={copy}
+      className={cn(
+        "rounded transition-all hover:bg-white/10",
+        size === "sm" ? "p-1" : "p-1.5",
+      )}>
+      {copied
+        ? <Check className={cn("text-green-400", size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5")} />
+        : <Copy className={cn("text-gray-500 hover:text-gray-300", size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5")} />
+      }
+    </button>
+  );
+}
+
+/* ─── Streaming Text ─── */
+function StreamingText({ text, onComplete }: { text: string; onComplete?: () => void }) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+
   useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 30000);
+    if (done) return;
+    let i = 0;
+    const speed = Math.max(5, Math.min(20, 2000 / text.length));
+    const interval = setInterval(() => {
+      i += 1;
+      // Skip ahead for long messages
+      const step = text.length > 500 ? 3 : text.length > 200 ? 2 : 1;
+      i = Math.min(i + step - 1, text.length);
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(interval);
+        setDone(true);
+        onComplete?.();
+      }
+    }, speed);
     return () => clearInterval(interval);
-  }, []);
+  }, [text, done, onComplete]);
 
-  const now = Date.now();
-  const then = new Date(timestamp).getTime();
-  const diff = Math.max(0, now - then);
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
+  if (done) return <>{renderMarkdown(text)}</>;
 
-  let text: string;
-  if (seconds < 30) text = "just now";
-  else if (minutes < 1) text = seconds + "s ago";
-  else if (minutes < 60) text = minutes + "m ago";
-  else if (hours < 24) text = hours + "h ago";
-  else text = formatTime(timestamp);
-
-  return <span>{text}</span>;
+  return (
+    <>
+      {renderMarkdown(displayed)}
+      <span className="inline-block w-1.5 h-4 bg-accent/70 animate-pulse ml-0.5 rounded-sm" />
+    </>
+  );
 }
 
-const SUGGESTIONS = [
-  { icon: Brain, label: "Show ideas", desc: "See pending improvements" },
-  { icon: Search, label: "Check monitors", desc: "View active watchers" },
-  { icon: Zap, label: "Create an agent", desc: "Build a new AI agent" },
-  { icon: Globe, label: "System status", desc: "Dashboard health check" },
-];
+/* ─── Quick Reactions ─── */
+const QUICK_REACTIONS = ["👍", "🔥", "💡", "✅", "❤️"];
 
+function ReactionPicker({ onReact }: { onReact: (emoji: string) => void }) {
+  return (
+    <div className="flex gap-0.5 bg-[#1a1a2e]/90 backdrop-blur-sm border border-white/10 rounded-full px-1 py-0.5">
+      {QUICK_REACTIONS.map((emoji) => (
+        <button key={emoji} onClick={() => onReact(emoji)}
+          className="hover:bg-white/10 rounded-full w-7 h-7 flex items-center justify-center text-sm transition-all hover:scale-110">
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Main Chat Page ─── */
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -163,40 +295,24 @@ export default function ChatPage() {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [uploadingToStorage, setUploadingToStorage] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState("");
-  const [isConnected, setIsConnected] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const [newMsgCount, setNewMsgCount] = useState(0);
-  const [lastPollTime, setLastPollTime] = useState<number>(Date.now());
+  const [isListening, setIsListening] = useState(false);
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
   const storageFileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const prevMsgCountRef = useRef(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Scroll detection
-  const handleScroll = useCallback(() => {
-    const container = chatContainerRef.current;
-    if (!container) return;
-    const distFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-    setShowScrollBtn(distFromBottom > 150);
-    if (distFromBottom < 50) setNewMsgCount(0);
-  }, []);
-
-  const scrollToBottom = useCallback(
-    (smooth = true) => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: smooth ? "smooth" : "auto",
-      });
-      setNewMsgCount(0);
-    },
-    []
-  );
-
-  // Fetch messages
+  /* ─── Fetch Messages ─── */
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -204,58 +320,48 @@ export default function ChatPage() {
         const data = await res.json();
         if (data.messages) {
           setMessages(data.messages);
-          setIsConnected(true);
-          setLastPollTime(Date.now());
-
-          // Track new messages when scrolled up
-          if (data.messages.length > prevMsgCountRef.current && prevMsgCountRef.current > 0) {
-            const container = chatContainerRef.current;
-            if (container) {
-              const distFromBottom =
-                container.scrollHeight - container.scrollTop - container.clientHeight;
-              if (distFromBottom > 150) {
-                setNewMsgCount((c) => c + (data.messages.length - prevMsgCountRef.current));
-              }
-            }
-          }
-          prevMsgCountRef.current = data.messages.length;
         }
       } catch (error) {
         console.error("Failed to fetch messages:", error);
-        setIsConnected(false);
       } finally {
         setLoading(false);
       }
     };
-
     fetchMessages();
-    const interval = setInterval(fetchMessages, 4000);
+    const interval = setInterval(fetchMessages, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-scroll on new messages (only if near bottom)
+  /* ─── Auto Scroll ─── */
+  useEffect(() => {
+    if (!streamingMsgId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamingMsgId]);
+
+  /* ─── Scroll Detection ─── */
   useEffect(() => {
     const container = chatContainerRef.current;
     if (!container) return;
-    const distFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (distFromBottom < 200) {
-      scrollToBottom(true);
-    }
-  }, [messages, scrollToBottom]);
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 100);
+    };
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
-  // Close menu on outside click
+  /* ─── Click Outside Menu ─── */
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
+      if (showReactionPicker) setShowReactionPicker(null);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [showReactionPicker]);
 
-  // Upload success toast
+  /* ─── Upload Success Toast ─── */
   useEffect(() => {
     if (uploadSuccess) {
       const t = setTimeout(() => setUploadSuccess(""), 3000);
@@ -263,53 +369,95 @@ export default function ChatPage() {
     }
   }, [uploadSuccess]);
 
-  const isUserMessage = (msg: ChatMessage) => msg.sender === "user";
-  const isBotMessage = (msg: ChatMessage) =>
-    msg.sender === "agent" || msg.sender === "kimi";
+  /* ─── Keyboard Shortcuts ─── */
+  useEffect(() => {
+    const handleKeys = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch((prev) => !prev);
+        setTimeout(() => searchRef.current?.focus(), 100);
+      }
+      if (e.key === "Escape") {
+        setShowSearch(false);
+        setSearchQuery("");
+      }
+    };
+    window.addEventListener("keydown", handleKeys);
+    return () => window.removeEventListener("keydown", handleKeys);
+  }, []);
 
+  /* ─── Voice Input ─── */
+  const toggleVoice = useCallback(() => {
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      alert("Voice input not supported in this browser");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setInput((prev) => {
+        const base = prev.endsWith(" ") ? prev : prev ? prev + " " : "";
+        return base + transcript;
+      });
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsListening(true);
+  }, [isListening]);
+
+  /* ─── Filtered Messages ─── */
+  const filteredMessages = useMemo(() => {
+    if (!searchQuery.trim()) return messages;
+    const q = searchQuery.toLowerCase();
+    return messages.filter((m) => m.text.toLowerCase().includes(q));
+  }, [messages, searchQuery]);
+
+  /* ─── Message Helpers ─── */
+  const isUserMessage = (msg: ChatMessage) => msg.sender === "user";
+  const isBotMessage = (msg: ChatMessage) => msg.sender === "agent" || msg.sender === "kimi";
+
+  /* ─── File Handling ─── */
   const handleChatFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     const newFiles: AttachedFile[] = Array.from(files).map((f) => ({
-      name: f.name,
-      size: f.size,
-      type: f.type,
-      uploading: false,
+      name: f.name, size: f.size, type: f.type, uploading: false,
     }));
     setAttachedFiles((prev) => [...prev, ...newFiles]);
     setShowMenu(false);
     e.target.value = "";
   };
 
-  const handleStorageFileSelect = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleStorageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setShowMenu(false);
     setUploadingToStorage(true);
-
     try {
       const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append("files", files[i]);
-      }
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      for (let i = 0; i < files.length; i++) formData.append("files", files[i]);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
-        setUploadSuccess(
-          `Uploaded ${files.length} file${files.length > 1 ? "s" : ""} to storage`
-        );
-        const fileNames = Array.from(files)
-          .map((f) => f.name)
-          .join(", ");
-        const text = `[Uploaded to storage: ${fileNames}]`;
+        setUploadSuccess(`Uploaded ${files.length} file${files.length > 1 ? "s" : ""} to storage`);
+        const fileNames = Array.from(files).map((f) => f.name).join(", ");
         await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({ message: `[Uploaded to storage: ${fileNames}]` }),
         });
       } else {
         setUploadSuccess("Upload failed. Try again.");
@@ -327,27 +475,34 @@ export default function ChatPage() {
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const sendMessage = async (overrideText?: string) => {
-    const rawText = overrideText ?? input;
-    if (!rawText.trim() && attachedFiles.length === 0) return;
+  /* ─── Add Reaction ─── */
+  const addReaction = (msgId: string, emoji: string) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId
+          ? { ...m, reactions: [...(m.reactions || []), emoji] }
+          : m
+      )
+    );
+    setShowReactionPicker(null);
+  };
 
-    const text = rawText.trim();
+  /* ─── Send Message ─── */
+  const sendMessage = async () => {
+    if (!input.trim() && attachedFiles.length === 0) return;
+    const text = input.trim();
     const files = [...attachedFiles];
     setInput("");
     setAttachedFiles([]);
     setIsTyping(true);
-    inputRef.current?.focus();
+
+    // Auto-resize textarea
+    if (inputRef.current) inputRef.current.style.height = "44px";
 
     let fullText = text;
     if (files.length > 0) {
-      const fileList = files
-        .map((f) => `${f.name} (${formatFileSize(f.size)})`)
-        .join(", ");
-      if (fullText) {
-        fullText += `\n\n[Attached: ${fileList}]`;
-      } else {
-        fullText = `[Attached: ${fileList}]`;
-      }
+      const fileList = files.map((f) => `${f.name} (${formatFileSize(f.size)})`).join(", ");
+      fullText = fullText ? `${fullText}\n\n[Attached: ${fileList}]` : `[Attached: ${fileList}]`;
     }
 
     const userMsg: ChatMessage = {
@@ -358,7 +513,6 @@ export default function ChatPage() {
       attachments: files,
     };
     setMessages((prev) => [...prev, userMsg]);
-    scrollToBottom(true);
 
     try {
       const res = await fetch("/api/chat", {
@@ -368,15 +522,17 @@ export default function ChatPage() {
       });
       if (!res.ok) throw new Error("Failed to send");
       const data = await res.json();
-
       if (data.reply) {
+        const kimiMsgId = (Date.now() + 1).toString();
         const kimiMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
+          id: kimiMsgId,
           text: data.reply,
           sender: "agent",
           agentName: "Kimi",
           timestamp: data.timestamp || new Date().toISOString(),
+          streaming: true,
         };
+        setStreamingMsgId(kimiMsgId);
         setMessages((prev) => [...prev, kimiMsg]);
       }
     } catch (error) {
@@ -394,273 +550,360 @@ export default function ChatPage() {
     }
   };
 
-  // Loading state
+  /* ─── Auto-resize Textarea ─── */
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = "44px";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  /* ─── Loading State ─── */
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-3rem)] gap-3">
-        <div className="relative">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-accent/20 flex items-center justify-center">
-            <Bot className="h-6 w-6 text-accent animate-pulse" />
+      <div className="flex items-center justify-center h-[calc(100vh-3rem)]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-2xl bg-accent/20 flex items-center justify-center">
+              <Sparkles className="h-6 w-6 text-accent animate-pulse" />
+            </div>
+            <div className="absolute inset-0 rounded-2xl bg-accent/10 animate-ping" />
           </div>
-          <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-green-500 border-2 border-[#0a0a1a]" />
+          <p className="text-sm text-gray-400 animate-pulse">Loading conversation...</p>
         </div>
-        <p className="text-sm text-gray-400 animate-pulse">Connecting to Kimi...</p>
       </div>
     );
   }
 
+  /* ─── Date Separator Logic ─── */
+  const getDateSeparators = (): Set<number> => {
+    const indices = new Set<number>();
+    let lastDate = "";
+    filteredMessages.forEach((msg, i) => {
+      const d = new Date(msg.timestamp).toDateString();
+      if (d !== lastDate) {
+        indices.add(i);
+        lastDate = d;
+      }
+    });
+    return indices;
+  };
+  const dateSepIndices = getDateSeparators();
+
   return (
-    <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
-      {/* Header */}
+    <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
+      {/* ─── Header ─── */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-purple-500/20 to-accent/20 flex items-center justify-center border border-white/5">
-              <Bot className="h-5 w-5 text-accent" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent/30 to-purple-500/20 flex items-center justify-center border border-accent/20">
+              <Sparkles className="h-5 w-5 text-accent" />
             </div>
-            <div
-              className={cn(
-                "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0a0a1a] transition-colors",
-                isConnected ? "bg-green-500" : "bg-red-500"
-              )}
-            />
+            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#0f0f1a]" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
               Chat with Kimi
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-                AI CEO
-              </span>
+              <span className="text-[10px] font-medium bg-accent/20 text-accent px-1.5 py-0.5 rounded-full">AI CEO</span>
             </h1>
-            <div className="flex items-center gap-2 text-[11px] text-gray-500">
-              {isConnected ? (
-                <>
-                  <Wifi className="h-3 w-3 text-green-500" />
-                  <span className="text-green-500/80">Online</span>
-                  <span className="text-gray-600">via Telegram + OpenRouter</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3 w-3 text-red-400" />
-                  <span className="text-red-400">Reconnecting...</span>
-                </>
-              )}
-            </div>
+            <p className="text-xs text-gray-500">Your AI partner &bull; Powered by Kimi K2</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-600">
-          <Clock className="h-3 w-3" />
-          <span>{messages.length} messages</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowSearch(!showSearch); setTimeout(() => searchRef.current?.focus(), 100); }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-all border",
+              showSearch
+                ? "bg-accent/10 border-accent/30 text-accent"
+                : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20"
+            )}
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden sm:inline text-[9px] bg-white/10 px-1 rounded">⌘K</kbd>
+          </button>
+          <div className="flex items-center gap-1.5 text-xs bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-green-400">Online</span>
+          </div>
         </div>
       </div>
 
-      {/* Upload success toast */}
+      {/* ─── Search Bar ─── */}
+      {showSearch && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2 animate-in slide-in-from-top-2">
+          <Search className="h-4 w-4 text-accent/50" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search messages..."
+            className="flex-1 bg-transparent text-sm text-white placeholder:text-gray-500 focus:outline-none"
+          />
+          {searchQuery && (
+            <span className="text-[10px] text-gray-400">
+              {filteredMessages.length} result{filteredMessages.length !== 1 ? "s" : ""}
+            </span>
+          )}
+          <button onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+            className="rounded p-1 hover:bg-white/10 transition-colors">
+            <X className="h-3.5 w-3.5 text-gray-400" />
+          </button>
+        </div>
+      )}
+
+      {/* ─── Upload Success Toast ─── */}
       {uploadSuccess && (
-        <div className="mb-2 rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-2.5 text-sm text-green-400 flex items-center gap-2 animate-in slide-in-from-top">
-          <Upload className="h-4 w-4" />
+        <div className="mb-2 rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-2.5 text-sm text-green-400 flex items-center gap-2 animate-in slide-in-from-top-2">
+          <div className="h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center">
+            <Check className="h-3 w-3" />
+          </div>
           {uploadSuccess}
         </div>
       )}
 
-      {/* Messages area */}
+      {/* ─── Messages Area ─── */}
       <div
         ref={chatContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 scroll-smooth relative"
+        className="flex-1 overflow-y-auto rounded-2xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent p-4 space-y-1 scroll-smooth"
+        style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}
       >
-        {/* Empty state */}
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full">
+        {/* Empty State */}
+        {filteredMessages.length === 0 && !searchQuery && (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <div className="relative mb-6">
-              <div className="h-16 w-16 rounded-3xl bg-gradient-to-br from-purple-500/10 to-accent/10 flex items-center justify-center border border-white/5">
-                <Sparkles className="h-8 w-8 text-accent/40" />
+              <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-accent/20 to-purple-500/10 flex items-center justify-center border border-white/10">
+                <Sparkles className="h-10 w-10 text-accent/40" />
+              </div>
+              <div className="absolute -top-2 -right-2 h-8 w-8 rounded-xl bg-yellow-500/20 flex items-center justify-center border border-yellow-500/20 rotate-12">
+                <Zap className="h-4 w-4 text-yellow-400/60" />
               </div>
             </div>
-            <p className="text-gray-400 font-medium mb-1">Hey Younes!</p>
-            <p className="text-gray-600 text-sm mb-6">
-              What would you like to work on?
+            <h3 className="text-lg font-semibold text-white/80 mb-1">Hey Younes!</h3>
+            <p className="text-sm text-gray-500 mb-6 text-center max-w-sm">
+              I&apos;m Kimi, your AI CEO. Ask me anything — manage agents, track scouts, remember things, or just chat.
             </p>
-            <div className="grid grid-cols-2 gap-2 w-full max-w-md">
-              {SUGGESTIONS.map((s) => (
+            <div className="grid grid-cols-2 gap-2 max-w-md">
+              {[
+                { icon: "🤖", text: "Create an agent" },
+                { icon: "📊", text: "Dashboard status" },
+                { icon: "🧠", text: "What do you remember?" },
+                { icon: "🔍", text: "Monitor a website" },
+              ].map((suggestion) => (
                 <button
-                  key={s.label}
-                  onClick={() => sendMessage(s.label.toLowerCase())}
-                  className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 text-left transition-all hover:bg-white/[0.06] hover:border-accent/20 group"
+                  key={suggestion.text}
+                  onClick={() => { setInput(suggestion.text); inputRef.current?.focus(); }}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-gray-300 hover:bg-white/10 hover:border-accent/20 hover:text-white transition-all group"
                 >
-                  <s.icon className="h-4 w-4 text-gray-500 group-hover:text-accent transition-colors shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-gray-300 group-hover:text-white transition-colors">
-                      {s.label}
-                    </p>
-                    <p className="text-[10px] text-gray-600">{s.desc}</p>
-                  </div>
+                  <span>{suggestion.icon}</span>
+                  <span className="group-hover:text-accent transition-colors">{suggestion.text}</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
+        {/* No Search Results */}
+        {filteredMessages.length === 0 && searchQuery && (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+            <Search className="h-10 w-10 mb-3 opacity-20" />
+            <p className="text-sm">No messages matching &quot;{searchQuery}&quot;</p>
+          </div>
+        )}
+
         {/* Messages */}
-        {messages.map((msg, idx) => {
-          const isUser = isUserMessage(msg);
-          const isBot = isBotMessage(msg);
-          const prevMsg = idx > 0 ? messages[idx - 1] : null;
-          const sameSender = prevMsg && prevMsg.sender === msg.sender;
-          const showAvatar = !sameSender;
+        {filteredMessages.map((msg, idx) => (
+          <div key={msg.id}>
+            {/* Date Separator */}
+            {dateSepIndices.has(idx) && (
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-white/[0.06]" />
+                <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="h-3 w-3" />
+                  {getDateLabel(msg.timestamp)}
+                </span>
+                <div className="flex-1 h-px bg-white/[0.06]" />
+              </div>
+            )}
 
-          return (
+            {/* Message Bubble */}
             <div
-              key={msg.id}
-              className={cn(
-                "flex gap-2.5",
-                isUser ? "justify-end" : "justify-start",
-                sameSender ? "mt-0.5" : "mt-3",
-                idx === messages.length - 1 && "animate-in fade-in slide-in-from-bottom-2 duration-300"
-              )}
+              className={cn("flex gap-2.5 group py-1", isUserMessage(msg) ? "justify-end" : "justify-start")}
+              onMouseEnter={() => setHoveredMsg(msg.id)}
+              onMouseLeave={() => { setHoveredMsg(null); setShowReactionPicker(null); }}
             >
-              {/* Bot avatar */}
-              {isBot && (
-                <div className={cn("shrink-0 w-7", !showAvatar && "invisible")}>
-                  <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-purple-500/15 to-accent/15 flex items-center justify-center border border-white/5">
-                    <Bot className="h-3.5 w-3.5 text-accent" />
-                  </div>
+              {/* Bot Avatar */}
+              {isBotMessage(msg) && (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/10 border border-accent/10 mt-0.5">
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
                 </div>
               )}
 
-              <div
-                className={cn(
-                  "max-w-[78%] rounded-2xl px-4 py-2.5 relative group",
-                  isUser
-                    ? "bg-accent/15 border border-accent/10 text-white"
-                    : "bg-white/[0.05] border border-white/[0.06] text-gray-200",
-                  isUser && !sameSender && "rounded-tr-md",
-                  !isUser && !sameSender && "rounded-tl-md"
-                )}
-              >
-                {/* Agent name */}
-                {msg.agentName && showAvatar && (
-                  <p className="text-[10px] font-semibold text-accent mb-1 tracking-wide uppercase">
-                    {msg.agentName}
-                  </p>
-                )}
-
-                {/* File attachments */}
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="mb-2 space-y-1">
-                    {msg.attachments.map((file, i) => {
-                      const FileIcon = getFileIcon(file.type);
-                      return (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 rounded-lg bg-white/[0.06] px-3 py-1.5 text-xs border border-white/5"
-                        >
-                          <FileIcon className="h-3.5 w-3.5 text-accent" />
-                          <span className="truncate">{file.name}</span>
-                          <span className="text-gray-500 shrink-0">
-                            {formatFileSize(file.size)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Message text */}
-                <div className="text-[13px] leading-relaxed">
-                  {isBot ? renderMessageText(msg.text) : (
-                    <span className="whitespace-pre-wrap">{msg.text}</span>
-                  )}
-                </div>
-
-                {/* Timestamp */}
+              <div className="flex flex-col max-w-[75%]">
+                {/* Message Content */}
                 <div
                   className={cn(
-                    "flex items-center gap-1.5 mt-1.5",
-                    isUser ? "justify-end" : "justify-start"
+                    "rounded-2xl px-4 py-3 relative",
+                    isUserMessage(msg)
+                      ? "bg-accent/15 border border-accent/10 text-white rounded-tr-md"
+                      : "bg-white/[0.06] border border-white/[0.06] text-gray-100 rounded-tl-md"
                   )}
                 >
-                  <span className="text-[10px] text-gray-600">
-                    <RelativeTime timestamp={msg.timestamp} />
-                  </span>
-                  {isUser && (
-                    <CheckCheck className="h-3 w-3 text-accent/50" />
+                  {msg.agentName && (
+                    <p className="text-[10px] font-semibold text-accent mb-1.5 uppercase tracking-wider">
+                      {msg.agentName}
+                    </p>
+                  )}
+
+                  {/* File Attachments */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="mb-2 space-y-1.5">
+                      {msg.attachments.map((file, i) => {
+                        const FileIcon = getFileIcon(file.type);
+                        return (
+                          <div key={i} className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.06] px-3 py-2 text-xs">
+                            <div className="h-7 w-7 rounded-lg bg-accent/10 flex items-center justify-center">
+                              <FileIcon className="h-3.5 w-3.5 text-accent" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate text-white/90 font-medium">{file.name}</p>
+                              <p className="text-gray-500 text-[10px]">{formatFileSize(file.size)}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Message Text */}
+                  <div className="text-sm leading-relaxed">
+                    {isBotMessage(msg) && msg.streaming && streamingMsgId === msg.id ? (
+                      <StreamingText
+                        text={msg.text}
+                        onComplete={() => {
+                          setStreamingMsgId(null);
+                          setMessages((prev) =>
+                            prev.map((m) => m.id === msg.id ? { ...m, streaming: false } : m)
+                          );
+                          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                        }}
+                      />
+                    ) : isBotMessage(msg) ? (
+                      renderMarkdown(msg.text)
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timestamp + Actions Row */}
+                <div className={cn(
+                  "flex items-center gap-1.5 mt-1 px-1",
+                  isUserMessage(msg) ? "justify-end" : "justify-start"
+                )}>
+                  <p className="text-[10px] text-gray-600">{formatTime(msg.timestamp)}</p>
+
+                  {/* Hover Actions */}
+                  {hoveredMsg === msg.id && (
+                    <div className="flex items-center gap-0.5 animate-in fade-in">
+                      <CopyButton text={msg.text} size="sm" />
+                      <button
+                        onClick={() => setShowReactionPicker(showReactionPicker === msg.id ? null : msg.id)}
+                        className="rounded p-1 hover:bg-white/10 transition-all"
+                      >
+                        <span className="text-[11px]">😊</span>
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {/* Reactions */}
+                {msg.reactions && msg.reactions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1 px-1">
+                    {Object.entries(
+                      msg.reactions.reduce((acc: Record<string, number>, r) => {
+                        acc[r] = (acc[r] || 0) + 1;
+                        return acc;
+                      }, {})
+                    ).map(([emoji, count]) => (
+                      <span key={emoji} className="inline-flex items-center gap-1 text-xs bg-white/[0.06] border border-white/[0.06] rounded-full px-2 py-0.5">
+                        {emoji} {(count as number) > 1 && <span className="text-gray-500">{count as number}</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Reaction Picker */}
+                {showReactionPicker === msg.id && (
+                  <div className={cn("mt-1", isUserMessage(msg) ? "self-end" : "self-start")}>
+                    <ReactionPicker onReact={(emoji) => addReaction(msg.id, emoji)} />
+                  </div>
+                )}
               </div>
 
-              {/* User avatar */}
-              {isUser && (
-                <div className={cn("shrink-0 w-7", !showAvatar && "invisible")}>
-                  <div className="h-7 w-7 rounded-xl bg-white/[0.08] flex items-center justify-center border border-white/5">
-                    <User className="h-3.5 w-3.5 text-gray-400" />
-                  </div>
+              {/* User Avatar */}
+              {isUserMessage(msg) && (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/10 mt-0.5">
+                  <User className="h-3.5 w-3.5 text-blue-400" />
                 </div>
               )}
             </div>
-          );
-        })}
+          </div>
+        ))}
 
-        {/* Typing indicator */}
+        {/* Typing Indicator */}
         {isTyping && (
-          <div className="flex gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-purple-500/15 to-accent/15 flex items-center justify-center border border-white/5 shrink-0">
-              <Bot className="h-3.5 w-3.5 text-accent" />
+          <div className="flex gap-2.5 py-1">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/10 border border-accent/10">
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
             </div>
-            <div className="rounded-2xl rounded-tl-md bg-white/[0.05] border border-white/[0.06] px-4 py-3">
+            <div className="rounded-2xl rounded-tl-md bg-white/[0.06] border border-white/[0.06] px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-bounce"
-                    style={{ animationDelay: "0ms", animationDuration: "0.8s" }}
-                  />
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-bounce"
-                    style={{ animationDelay: "150ms", animationDuration: "0.8s" }}
-                  />
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-bounce"
-                    style={{ animationDelay: "300ms", animationDuration: "0.8s" }}
-                  />
+                  <span className="h-2 w-2 rounded-full bg-accent/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-accent/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-accent/50 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
-                <span className="text-[10px] text-gray-600">Kimi is thinking...</span>
+                <span className="text-[10px] text-gray-500">Kimi is thinking...</span>
               </div>
             </div>
           </div>
         )}
-
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Scroll to bottom button */}
+      {/* ─── Scroll to Bottom ─── */}
       {showScrollBtn && (
         <div className="relative">
           <button
-            onClick={() => scrollToBottom(true)}
-            className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-[#1a1a2e]/90 border border-white/10 px-3 py-1.5 text-xs text-gray-300 shadow-lg backdrop-blur-sm hover:bg-white/10 transition-all z-10"
+            onClick={scrollToBottom}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-accent/90 backdrop-blur-sm px-3 py-1.5 text-xs text-white shadow-lg shadow-accent/20 hover:bg-accent transition-all z-10"
           >
-            <ChevronDown className="h-3 w-3" />
-            {newMsgCount > 0 ? `${newMsgCount} new message${newMsgCount > 1 ? "s" : ""}` : "Scroll to bottom"}
+            <ArrowDown className="h-3 w-3" />
+            New messages
           </button>
         </div>
       )}
 
-      {/* Attachment preview bar */}
+      {/* ─── Attached Files Preview ─── */}
       {attachedFiles.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {attachedFiles.map((file, i) => {
             const FileIcon = getFileIcon(file.type);
             return (
-              <div
-                key={i}
-                className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-white"
-              >
-                <FileIcon className="h-3.5 w-3.5 text-accent" />
+              <div key={i} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white group">
+                <div className="h-6 w-6 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <FileIcon className="h-3 w-3 text-accent" />
+                </div>
                 <span className="truncate max-w-[120px]">{file.name}</span>
                 <span className="text-gray-500">{formatFileSize(file.size)}</span>
-                <button
-                  onClick={() => removeAttachment(i)}
-                  className="ml-1 rounded p-0.5 hover:bg-white/10 transition-colors"
-                >
+                <button onClick={() => removeAttachment(i)} className="ml-1 rounded-full p-0.5 hover:bg-white/10 transition-colors opacity-50 group-hover:opacity-100">
                   <X className="h-3 w-3 text-gray-400" />
                 </button>
               </div>
@@ -669,111 +912,100 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Input area */}
+      {/* ─── Input Area ─── */}
       <div className="mt-3 flex gap-2 items-end">
-        {/* Plus menu */}
+        {/* Plus Menu */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowMenu(!showMenu)}
             className={cn(
-              "flex items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-3 text-white transition-all hover:bg-white/[0.06] hover:border-accent/30",
-              showMenu && "bg-white/[0.06] border-accent/30"
+              "flex items-center justify-center rounded-xl border bg-white/5 w-11 h-11 text-white transition-all hover:bg-white/10",
+              showMenu ? "bg-white/10 border-accent/30 rotate-45" : "border-white/10 hover:border-white/20"
             )}
             title="Add files & more"
           >
-            <Plus
-              className={cn(
-                "h-5 w-5 transition-transform duration-200",
-                showMenu && "rotate-45"
-              )}
-            />
+            <Plus className="h-5 w-5 transition-transform" />
           </button>
-
           {showMenu && (
-            <div className="absolute bottom-full left-0 mb-2 w-56 rounded-xl border border-white/[0.08] bg-[#12122a]/95 shadow-xl overflow-hidden z-50 backdrop-blur-xl">
-              <button
-                onClick={() => chatFileRef.current?.click()}
-                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.06] transition-colors"
-              >
-                <Paperclip className="h-4 w-4 text-accent" />
+            <div className="absolute bottom-full left-0 mb-2 w-60 rounded-xl border border-white/10 bg-[#1a1a2e]/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2">
+              <button onClick={() => chatFileRef.current?.click()}
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors">
+                <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Paperclip className="h-4 w-4 text-accent" />
+                </div>
                 <div className="text-left">
-                  <p className="font-medium text-[13px]">Attach to chat</p>
-                  <p className="text-[11px] text-gray-500">
-                    Send files with your message
-                  </p>
+                  <p className="font-medium text-sm">Attach to message</p>
+                  <p className="text-[11px] text-gray-400">Send files with your message</p>
                 </div>
               </button>
               <div className="border-t border-white/5" />
-              <button
-                onClick={() => storageFileRef.current?.click()}
-                disabled={uploadingToStorage}
-                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.06] transition-colors disabled:opacity-50"
-              >
-                <Upload className="h-4 w-4 text-green-400" />
+              <button onClick={() => storageFileRef.current?.click()} disabled={uploadingToStorage}
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors disabled:opacity-50">
+                <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <Upload className="h-4 w-4 text-green-400" />
+                </div>
                 <div className="text-left">
-                  <p className="font-medium text-[13px]">Upload to storage</p>
-                  <p className="text-[11px] text-gray-500">
-                    {uploadingToStorage
-                      ? "Uploading..."
-                      : "Save files to dashboard"}
-                  </p>
+                  <p className="font-medium text-sm">Upload to storage</p>
+                  <p className="text-[11px] text-gray-400">{uploadingToStorage ? "Uploading..." : "Save files to dashboard"}</p>
                 </div>
               </button>
             </div>
           )}
         </div>
 
-        {/* Hidden file inputs */}
-        <input
-          ref={chatFileRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleChatFileSelect}
-          accept="image/*,.pdf,.doc,.docx,.txt,.csv,.json,.zip,.tar,.gz"
-        />
-        <input
-          ref={storageFileRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleStorageFileSelect}
-        />
+        {/* Hidden File Inputs */}
+        <input ref={chatFileRef} type="file" multiple className="hidden" onChange={handleChatFileSelect}
+          accept="image/*,.pdf,.doc,.docx,.txt,.csv,.json,.zip,.tar,.gz" />
+        <input ref={storageFileRef} type="file" multiple className="hidden" onChange={handleStorageFileSelect} />
 
-        {/* Text input */}
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-          placeholder={
-            attachedFiles.length > 0
-              ? "Add a message or just send..."
-              : "Message Kimi..."
-          }
-          className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-accent/40 focus:bg-white/[0.04] transition-all"
-        />
+        {/* Text Input */}
+        <div className="flex-1 relative">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder={attachedFiles.length > 0 ? "Add a message or just send..." : "Message Kimi..."}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 resize-none transition-all"
+            rows={1}
+            style={{ height: "44px", maxHeight: "160px" }}
+          />
+          {/* Voice Button inside input */}
+          <button
+            onClick={toggleVoice}
+            className={cn(
+              "absolute right-2 bottom-2 rounded-lg p-1.5 transition-all",
+              isListening
+                ? "bg-red-500/20 text-red-400 animate-pulse"
+                : "hover:bg-white/10 text-gray-500 hover:text-gray-300"
+            )}
+            title={isListening ? "Stop listening" : "Voice input"}
+          >
+            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+        </div>
 
-        {/* Send button */}
+        {/* Send Button */}
         <button
-          onClick={() => sendMessage()}
+          onClick={sendMessage}
           disabled={!input.trim() && attachedFiles.length === 0}
-          className={cn(
-            "flex items-center justify-center rounded-xl px-4 py-3 text-white transition-all",
-            input.trim() || attachedFiles.length > 0
-              ? "bg-accent hover:bg-accent/80 shadow-lg shadow-accent/20"
-              : "bg-white/[0.05] text-gray-600 cursor-not-allowed"
-          )}
+          className="flex items-center justify-center rounded-xl bg-accent w-11 h-11 text-white transition-all hover:bg-accent/80 hover:shadow-lg hover:shadow-accent/20 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
         >
           <Send className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Footer hint */}
-      <p className="text-center text-[10px] text-gray-700 mt-2 mb-1">
-        Kimi connects to Telegram, remembers context, and can execute commands
-      </p>
+      {/* ─── Footer ─── */}
+      <div className="mt-2 mb-1 flex items-center justify-center">
+        <p className="text-[10px] text-gray-600">
+          Kimi K2 &bull; Memory-enhanced &bull; Shift+Enter for new line
+        </p>
+      </div>
     </div>
   );
 }
