@@ -5,7 +5,7 @@ import FeedList from "@/components/dashboard/FeedList";
 
 export default function FeedPage() {
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Activity className="h-6 w-6 text-accent" />
