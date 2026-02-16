@@ -88,7 +88,7 @@ async function generateKimiReply(userMessage: string, chatHistory: any[]): Promi
 
 // Process dashboard commands from Kimi's response
 async function processDashboardCommands(kimiReply: string, data: any): Promise<{cleanReply: string, updates: string[]}> {
-    const cmdRegex = /\[DASHBOARD_CMD\](.*?)\[\/DASHBOARD_CMD\]/gs;
+    const cmdRegex = /\[DASHBOARD_CMD\]([\s\S]*?)\[\/DASHBOARD_CMD\]/g;
     const updates: string[] = [];
     let cleanReply = kimiReply;
     let match;
