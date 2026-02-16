@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     const data = await readData();
     const agents = data.agents || [];
 
-    return Response.json({ 
-      success: true, 
+    return Response.json({
+      success: true,
       agents,
       count: agents.length,
       active: agents.filter((a: any) => a.status === 'active').length
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { agentId, status, currentTask, metrics } = body;
+    const { agentId, status } = body;
 
     if (!agentId || !status) {
       return Response.json(
@@ -36,20 +36,41 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await readData();
-    
+
     // Find or create agent
     const agentIndex = data.agents.findIndex((a: any) => a.id === agentId);
-    
-    const agentData = {
+
+    // Build update object - only include fields that were provided
+    const agentData: Record<string, any> = {
       id: agentId,
-      name: body.name || agentId,
-      icon: body.icon || '🤖',
+      name: body.name || (agentIndex >= 0 ? data.agents[agentIndex].name : agentId),
+      icon: body.icon || (agentIndex >= 0 ? data.agents[agentIndex].icon : undefined),
       status,
-      currentTask: currentTask || null,
+      currentTask: body.currentTask !== undefined ? body.currentTask : (agentIndex >= 0 ? data.agents[agentIndex].currentTask : null),
       lastActive: new Date().toISOString(),
-      metrics: metrics || {},
+      metrics: body.metrics || (agentIndex >= 0 ? data.agents[agentIndex].metrics : {}),
       updatedAt: new Date().toISOString()
     };
+
+    // Persist systemPrompt if provided
+    if (body.systemPrompt !== undefined) {
+      agentData.systemPrompt = body.systemPrompt;
+    }
+
+    // Persist files if provided
+    if (body.files !== undefined) {
+      agentData.files = body.files;
+    }
+
+    // Persist role if provided
+    if (body.role !== undefined) {
+      agentData.role = body.role;
+    }
+
+    // Persist capabilities if provided
+    if (body.capabilities !== undefined) {
+      agentData.capabilities = body.capabilities;
+    }
 
     if (agentIndex >= 0) {
       data.agents[agentIndex] = { ...data.agents[agentIndex], ...agentData };
@@ -59,9 +80,9 @@ export async function POST(request: NextRequest) {
 
     await writeData(data);
 
-    return Response.json({ 
-      success: true, 
-      agent: agentIndex >= 0 ? data.agents[agentIndex] : agentData 
+    return Response.json({
+      success: true,
+      agent: agentIndex >= 0 ? data.agents[agentIndex] : agentData
     });
   } catch (error) {
     console.error('Agents API error:', error);
@@ -86,12 +107,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     const data = await readData();
-    
+
     for (const agentUpdate of agents) {
       const agentIndex = data.agents.findIndex((a: any) => a.id === agentUpdate.id);
+
       if (agentIndex >= 0) {
-        data.agents[agentIndex] = { 
-          ...data.agents[agentIndex], 
+        data.agents[agentIndex] = {
+          ...data.agents[agentIndex],
           ...agentUpdate,
           lastActive: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -107,9 +129,9 @@ export async function PATCH(request: NextRequest) {
 
     await writeData(data);
 
-    return Response.json({ 
-      success: true, 
-      updated: agents.length 
+    return Response.json({
+      success: true,
+      updated: agents.length
     });
   } catch (error) {
     console.error('Agents API error:', error);
