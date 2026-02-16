@@ -68,7 +68,14 @@ const defaultData = {
       alerts: [] as any[]
     },
     // Second Brain: Agent Executions
-    agent_executions: [] as any[]
+    agent_executions: [] as any[],
+    // Self-Evolution System
+    evolution: {
+      ideas: [] as any[],
+      history: [] as any[],
+      lastRun: '',
+      hashes: [] as string[]
+    }
 };
 
 async function fetchFromBlob(): Promise<any> {
@@ -98,7 +105,13 @@ async function fetchFromBlob(): Promise<any> {
                                           monitors: data.scouts.monitors || [],
                                           alerts: data.scouts.alerts || []
                                         } : defaultData.scouts,
-                                        agent_executions: data.agent_executions || []
+                                        agent_executions: data.agent_executions || [],
+                                        evolution: data.evolution ? {
+                                          ideas: data.evolution.ideas || [],
+                                          history: data.evolution.history || [],
+                                          lastRun: data.evolution.lastRun || '',
+                                          hashes: data.evolution.hashes || []
+                                        } : defaultData.evolution
                             };
                   }
           }
