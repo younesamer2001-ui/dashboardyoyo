@@ -1,4 +1,4 @@
-undefinedimport { NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { readData, writeData } from '@/lib/storage';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8564487018:AAFQ4ViP3-e84znrkMOdVZoqn0BYzOO_sr8';
