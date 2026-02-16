@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+undefinedimport { NextRequest } from 'next/server';
 import { readData, writeData } from '@/lib/storage';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8564487018:AAFQ4ViP3-e84znrkMOdVZoqn0BYzOO_sr8';
@@ -328,7 +328,7 @@ async function handleEvolutionCommand(message: string, data: any): Promise<strin
 }
 
 // Build system prompt with memory context
-function buildSystemPrompt(data: any): string {
+function buildSystemPrompt(memoryContext: string, evolutionContext: string): string {
     let prompt = 'You are Kimi \u2014 an AI CEO, coach, and command center for Younes. You live inside Dashboard YOYO.\n\n';
     
     prompt += 'CRITICAL RULE: You are an ACTION-TAKER, not just a talker. When Younes asks you to DO something (create an agent, save a memory, check a website, update the dashboard), you MUST include the appropriate command block in your response. NEVER just say "I will do that" or "Sure, I can help" without actually including the command block that makes it happen.\n\n';
@@ -358,18 +358,12 @@ function buildSystemPrompt(data: any): string {
     prompt += '- User says "change sidebar" / "update menu" / "rename dashboard" -> use DASHBOARD_CMD\n';
     prompt += '- User says "run" / "execute" / "do this task" / "analyze" -> use ACTION_CMD with execute\n\n';
     
-    prompt += 'CURRENT DASHBOARD STATE:\n';
-    prompt += '- Agents: ' + (data.agents || []).length + ' active\n';
-    prompt += '- Scouts: ' + (data.scouts || []).length + ' monitors\n';
-    prompt += '- Memory entries: ' + (data.memory || []).length + '\n';
-    prompt += '- Ideas: ' + (data.ideas || []).length + '\n\n';
-    
-    if (data.agents && data.agents.length > 0) {
-        prompt += 'Existing agents: ' + data.agents.map((a: any) => a.icon + ' ' + a.name + ' (' + a.role + ')').join(', ') + '\n\n';
+    if (memoryContext) {
+        prompt += 'MEMORY CONTEXT:\n' + memoryContext + '\n\n';
     }
     
-    if (data.memory && data.memory.length > 0) {
-        prompt += 'Key memories: ' + data.memory.slice(-5).map((m: any) => m.key + ': ' + m.value).join('; ') + '\n\n';
+    if (evolutionContext) {
+        prompt += 'EVOLUTION CONTEXT:\n' + evolutionContext + '\n\n';
     }
     
     prompt += 'GUIDELINES:\n';
