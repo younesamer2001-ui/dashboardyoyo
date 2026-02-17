@@ -5,7 +5,7 @@ import {
   Users, Send, Crown, TrendingUp, Megaphone, Calculator, 
   Code, Palette, Briefcase, Sparkles, Loader2,
   ChevronDown, Plus, FolderKanban, Hash, Settings,
-  MoreHorizontal, Archive, Edit3, Trash2, X
+  MoreHorizontal, Archive, Edit3, Trash2, X, CheckCircle2
 } from "lucide-react";
 
 interface TeamMember {
