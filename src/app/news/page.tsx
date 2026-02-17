@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
-  Newspaper, TrendingUp, TrendingDown, DollarSign,
-  Globe, Building2, Pickaxe, Droplets, Flame,
-  Clock, ExternalLink, Filter, Star, RefreshCw,
-  X, Bell, BarChart3
+  Newspaper, TrendingUp, DollarSign, Building2, Pickaxe, Droplets, Flame,
+  Clock, ExternalLink, Filter, Star, RefreshCw, X, BarChart3
 } from "lucide-react";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
-} from "recharts";
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 interface NewsItem {
   id: string;
@@ -38,148 +34,29 @@ interface Commodity {
   unit: string;
   icon: any;
   history: PricePoint[];
+  loading?: boolean;
 }
 
 type TimeRange = "3h" | "1d" | "1w" | "1m" | "3m" | "6m" | "1y";
 
-const TIME_RANGES: { key: TimeRange; label: string; minutes: number }[] = [
-  { key: "3h", label: "3T", minutes: 180 },
-  { key: "1d", label: "1D", minutes: 1440 },
-  { key: "1w", label: "1U", minutes: 10080 },
-  { key: "1m", label: "1M", minutes: 43200 },
-  { key: "3m", label: "3M", minutes: 129600 },
-  { key: "6m", label: "6M", minutes: 259200 },
-  { key: "1y", label: "1Å", minutes: 525600 },
+const TIME_RANGES: { key: TimeRange; label: string }[] = [
+  { key: "3h", label: "3T" },
+  { key: "1d", label: "1D" },
+  { key: "1w", label: "1U" },
+  { key: "1m", label: "1M" },
+  { key: "3m", label: "3M" },
+  { key: "6m", label: "6M" },
+  { key: "1y", label: "1Å" },
 ];
 
-// Generate realistic price history
-function generatePriceHistory(basePrice: number, volatility: number): PricePoint[] {
-  const history: PricePoint[] = [];
-  const now = Date.now();
-  const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
-  const points = 365 * 24; // Hourly data for a year
-  
-  let currentPrice = basePrice;
-  
-  for (let i = 0; i < points; i++) {
-    const time = oneYearAgo + (i * 60 * 60 * 1000);
-    const randomChange = (Math.random() - 0.5) * volatility;
-    const trend = Math.sin(i / 100) * volatility * 0.5; // Add some trend
-    currentPrice = currentPrice * (1 + randomChange + trend * 0.001);
-    
-    history.push({
-      time,
-      price: Math.max(currentPrice, basePrice * 0.5), // Prevent negative prices
-    });
-  }
-  
-  return history;
-}
-
-// Initial commodities with history
-const createInitialCommodities = (): Commodity[] => [
-  {
-    symbol: "BRENT",
-    name: "Brent Oil",
-    currentPrice: 83.45,
-    change: 2.15,
-    changePercent: 2.64,
-    unit: "USD/bbl",
-    icon: Droplets,
-    history: generatePriceHistory(83.45, 0.02),
-  },
-  {
-    symbol: "GOLD",
-    name: "Gull",
-    currentPrice: 2145.30,
-    change: 28.50,
-    changePercent: 1.35,
-    unit: "USD/oz",
-    icon: Star,
-    history: generatePriceHistory(2145, 0.015),
-  },
-  {
-    symbol: "COPPER",
-    name: "Kobber",
-    currentPrice: 3.92,
-    change: 0.08,
-    changePercent: 2.08,
-    unit: "USD/lb",
-    icon: Pickaxe,
-    history: generatePriceHistory(3.92, 0.025),
-  },
-  {
-    symbol: "NATGAS",
-    name: "Naturgass",
-    currentPrice: 2.85,
-    change: -0.15,
-    changePercent: -5.00,
-    unit: "USD/MMBtu",
-    icon: Flame,
-    history: generatePriceHistory(2.85, 0.04),
-  },
-  {
-    symbol: "ALUM",
-    name: "Aluminium",
-    currentPrice: 2250.00,
-    change: 45.00,
-    changePercent: 2.04,
-    unit: "USD/ton",
-    icon: Building2,
-    history: generatePriceHistory(2250, 0.02),
-  },
-  {
-    symbol: "NOK",
-    name: "Norsk Krone",
-    currentPrice: 11.45,
-    change: -0.08,
-    changePercent: -0.69,
-    unit: "NOK/EUR",
-    icon: TrendingUp,
-    history: generatePriceHistory(11.45, 0.008),
-  },
-  {
-    symbol: "USD",
-    name: "US Dollar",
-    currentPrice: 1.08,
-    change: 0.02,
-    changePercent: 1.89,
-    unit: "USD/EUR",
-    icon: DollarSign,
-    history: generatePriceHistory(1.08, 0.012),
-  },
-];
-
-// Generate full content for articles
-const generateFullContent = (title: string, summary: string): string => {
-  return `${summary}
-
-Dette er en viktig utvikling som kan ha betydelige konsekvenser for markedet. Analytikere følger situasjonen nøye.
-
-**Nøkkelpunkter:**
-• Situationen utvikler seg raskt
-• Markedet reagerer positivt
-• Eksperter anbefaler å følge med på videre utvikling
-
-**Hva betyr dette for deg?**
-Avhengig av din portefølje kan dette påvirke dine investeringer. Det er lurt å holde seg oppdatert på videre nyheter.
-
-Les hele artikkelen på kilden for mer detaljert informasjon.`;
-};
-
-const initialNews: NewsItem[] = [
-  {
-    id: "1",
-    title: "Oljeprisen stiger etter OPEC+ produksjonskutt",
-    summary: "Brent-olje har steget 3% etter at OPEC+ annonserte videre produksjonskutt.",
-    fullContent: generateFullContent("Oljeprisen stiger", "Brent-olje har steget 3%"),
-    source: "E24",
-    category: "energy",
-    url: "https://e24.no/olje",
-    publishedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    isRead: false,
-    isStarred: true,
-  },
+const initialCommodities: Commodity[] = [
+  { symbol: "BRENT", name: "Brent Oil", currentPrice: 83.45, change: 2.15, changePercent: 2.64, unit: "USD/bbl", icon: Droplets, history: [], loading: true },
+  { symbol: "GOLD", name: "Gull", currentPrice: 2145.30, change: 28.50, changePercent: 1.35, unit: "USD/oz", icon: Star, history: [], loading: true },
+  { symbol: "COPPER", name: "Kobber", currentPrice: 3.92, change: 0.08, changePercent: 2.08, unit: "USD/lb", icon: Pickaxe, history: [], loading: true },
+  { symbol: "NATGAS", name: "Naturgass", currentPrice: 2.85, change: -0.15, changePercent: -5.00, unit: "USD/MMBtu", icon: Flame, history: [], loading: true },
+  { symbol: "ALUM", name: "Aluminium", currentPrice: 2250.00, change: 45.00, changePercent: 2.04, unit: "USD/ton", icon: Building2, history: [], loading: true },
+  { symbol: "NOK", name: "Norsk Krone", currentPrice: 11.45, change: -0.08, changePercent: -0.69, unit: "NOK/EUR", icon: TrendingUp, history: [], loading: true },
+  { symbol: "USD", name: "US Dollar", currentPrice: 1.08, change: 0.02, changePercent: 1.89, unit: "USD/EUR", icon: DollarSign, history: [], loading: true },
 ];
 
 const categories = [
@@ -195,10 +72,8 @@ const sources = ["Alle", "E24", "Finansavisen", "Yahoo Finance"];
 function getRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
+  const diffMin = Math.floor((now.getTime() - date.getTime()) / 60000);
   const diffHour = Math.floor(diffMin / 60);
-
   if (diffMin < 1) return "Nå";
   if (diffMin < 60) return `${diffMin}m`;
   if (diffHour < 24) return `${diffHour}t`;
@@ -212,64 +87,89 @@ function formatPrice(price: number): string {
 }
 
 export default function NewsPage() {
-  const [commodities, setCommodities] = useState<Commodity[]>(createInitialCommodities());
-  const [news, setNews] = useState<NewsItem[]>(initialNews);
+  const [commodities, setCommodities] = useState<Commodity[]>(initialCommodities);
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedSource, setSelectedSource] = useState("Alle");
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [selectedCommodity, setSelectedCommodity] = useState<Commodity | null>(null);
   const [chartRange, setChartRange] = useState<TimeRange>("3m");
-  const [lastHourlyUpdate, setLastHourlyUpdate] = useState(Date.now());
+  const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [loading, setLoading] = useState(true);
 
-  // Live price updates every hour
-  useEffect(() => {
-    const updatePrices = () => {
+  // Fetch real market data
+  const fetchMarketData = async () => {
+    try {
+      const response = await fetch("/api/market");
+      if (!response.ok) throw new Error("Failed to fetch");
+      
+      const data = await response.json();
+      
       setCommodities((prev) =>
         prev.map((comm) => {
-          const randomChange = (Math.random() - 0.5) * 0.02; // Max 1% change
-          const newPrice = comm.currentPrice * (1 + randomChange);
-          const priceChange = newPrice - comm.currentPrice;
-          const percentChange = (priceChange / comm.currentPrice) * 100;
-
-          // Add new price point to history
-          const newHistoryPoint = {
-            time: Date.now(),
-            price: newPrice,
-          };
-
-          return {
-            ...comm,
-            currentPrice: newPrice,
-            change: priceChange,
-            changePercent: percentChange,
-            history: [...comm.history.slice(-8760), newHistoryPoint], // Keep last year
-          };
+          const apiData = data[comm.symbol];
+          if (apiData) {
+            return {
+              ...comm,
+              currentPrice: apiData.price,
+              change: apiData.change,
+              changePercent: apiData.changePercent,
+              history: apiData.history || [],
+              loading: false,
+            };
+          }
+          return { ...comm, loading: false };
         })
       );
-      setLastHourlyUpdate(Date.now());
-    };
+      
+      setLastUpdate(new Date().toISOString());
+    } catch (error) {
+      console.error("Failed to fetch market data:", error);
+      setCommodities((prev) => prev.map((c) => ({ ...c, loading: false })));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Update immediately
-    updatePrices();
-
-    // Then every hour
-    const interval = setInterval(updatePrices, 60 * 60 * 1000); // 1 hour
-
+  // Fetch on mount and every 5 minutes
+  useEffect(() => {
+    fetchMarketData();
+    const interval = setInterval(fetchMarketData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Filter history based on selected time range
+  // Fetch chart data when modal opens or range changes
+  const fetchChartData = async (symbol: string, range: TimeRange) => {
+    try {
+      const response = await fetch(`/api/market?symbol=${symbol}&range=${range}`);
+      if (!response.ok) throw new Error("Failed to fetch chart");
+      
+      const data = await response.json();
+      return data.history || [];
+    } catch (error) {
+      console.error("Chart fetch error:", error);
+      return [];
+    }
+  };
+
+  // Update chart when commodity/range changes
+  useEffect(() => {
+    if (selectedCommodity) {
+      fetchChartData(selectedCommodity.symbol, chartRange).then((history) => {
+        setSelectedCommodity((prev) => (prev ? { ...prev, history } : null));
+      });
+    }
+  }, [selectedCommodity?.symbol, chartRange]);
+
   const getFilteredHistory = (commodity: Commodity, range: TimeRange) => {
-    const now = Date.now();
-    const rangeConfig = TIME_RANGES.find((r) => r.key === range);
-    if (!rangeConfig) return commodity.history;
-    
-    const cutoff = now - rangeConfig.minutes * 60 * 1000;
+    const rangeMinutes: Record<TimeRange, number> = {
+      "3h": 180, "1d": 1440, "1w": 10080, "1m": 43200, "3m": 129600, "6m": 259200, "1y": 525600,
+    };
+    const cutoff = Date.now() - rangeMinutes[range] * 60 * 1000;
     return commodity.history.filter((p) => p.time >= cutoff);
   };
 
-  // Chart data formatter
   const getChartData = (commodity: Commodity) => {
     const filtered = getFilteredHistory(commodity, chartRange);
     return filtered.map((p) => ({
@@ -289,11 +189,6 @@ export default function NewsPage() {
     return true;
   });
 
-  const openArticle = (item: NewsItem) => {
-    setSelectedArticle(item);
-    setNews((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: true } : i)));
-  };
-
   const unreadCount = news.filter((n) => !n.isRead).length;
 
   return (
@@ -306,23 +201,34 @@ export default function NewsPage() {
             Nyheter & Markeder
           </h1>
           <p className="text-[#8a8a9a] text-sm mt-1">
-            Live oppdatering hver time • {commodities.length} råvarer
+            Yahoo Finance data • {commodities.length} råvarer
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={fetchMarketData}
+            disabled={loading}
+            className="p-2.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[#8a8a9a] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs text-emerald-400">Live</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04]">
-            <Clock className="w-4 h-4 text-[#5a5a6a]" />
-            <span className="text-xs text-[#8a8a9a]">Oppdatert {getRelativeTime(new Date(lastHourlyUpdate).toISOString())}</span>
-          </div>
+
+          {lastUpdate && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04]">
+              <Clock className="w-4 h-4 text-[#5a5a6a]" />
+              <span className="text-xs text-[#8a8a9a]">{getRelativeTime(lastUpdate)}</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Commodity Cards - Clickable */}
+      {/* Commodity Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         {commodities.map((commodity) => {
           const Icon = commodity.icon;
@@ -337,16 +243,23 @@ export default function NewsPage() {
               <div className="flex items-center justify-between mb-2">
                 <Icon className="w-5 h-5 text-[#5a5a6a] group-hover:text-[#5b8aff] transition-colors" />
                 <div className="flex items-center gap-1">
-                  <span className={`text-xs font-medium ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-                    {isPositive ? "+" : ""}{commodity.changePercent.toFixed(2)}%
-                  </span>
+                  {commodity.loading ? (
+                    <RefreshCw className="w-3 h-3 text-[#5a5a6a] animate-spin" />
+                  ) : (
+                    <span className={`text-xs font-medium ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
+                      {isPositive ? "+" : ""}{commodity.changePercent.toFixed(2)}%
+                    </span>
+                  )}
                   <BarChart3 className="w-3 h-3 text-[#5a5a6a] group-hover:text-[#5b8aff]" />
                 </div>
               </div>
+
               <p className="text-xs text-[#5a5a6a] uppercase tracking-wider">{commodity.symbol}</p>
+              
               <p className="text-xl font-semibold text-white group-hover:text-[#5b8aff] transition-colors">
-                {formatPrice(commodity.currentPrice)}
+                {commodity.loading ? "—" : formatPrice(commodity.currentPrice)}
               </p>
+              
               <p className="text-xs text-[#5a5a6a]">{commodity.unit}</p>
             </button>
           );
@@ -409,7 +322,10 @@ export default function NewsPage() {
             filteredNews.map((item) => (
               <article
                 key={item.id}
-                onClick={() => openArticle(item)}
+                onClick={() => {
+                  setSelectedArticle(item);
+                  setNews((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: true } : i)));
+                }}
                 className={`p-4 rounded-xl border transition-all cursor-pointer group ${
                   item.isRead
                     ? "bg-[#13131f] border-white/[0.04] opacity-70"
@@ -420,9 +336,7 @@ export default function NewsPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setNews((prev) =>
-                        prev.map((i) => (i.id === item.id ? { ...i, isStarred: !i.isStarred } : i))
-                      );
+                      setNews((prev) => prev.map((i) => (i.id === item.id ? { ...i, isStarred: !i.isStarred } : i)));
                     }}
                     className={`mt-0.5 ${item.isStarred ? "text-amber-400" : "text-[#5a5a6a] hover:text-amber-400"}`}
                   >
@@ -466,7 +380,7 @@ export default function NewsPage() {
         </div>
       </div>
 
-      {/* Commodity Chart Modal */}
+      {/* Chart Modal */}
       {selectedCommodity && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
@@ -476,12 +390,10 @@ export default function NewsPage() {
             className="bg-[#0f0f14] border border-white/[0.08] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="sticky top-0 bg-[#0f0f14] border-b border-white/[0.06] p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-[#5b8aff]/10 flex items-center justify-center"
-                  >
+                  <div className="w-12 h-12 rounded-xl bg-[#5b8aff]/10 flex items-center justify-center">
                     <selectedCommodity.icon className="w-6 h-6 text-[#5b8aff]" />
                   </div>
                   <div>
@@ -498,22 +410,17 @@ export default function NewsPage() {
                 </button>
               </div>
 
-              {/* Current Price */}
               <div className="flex items-baseline gap-4">
-                <span className="text-4xl font-bold text-white">
-                  {formatPrice(selectedCommodity.currentPrice)}
-                </span>
+                <span className="text-4xl font-bold text-white">{formatPrice(selectedCommodity.currentPrice)}</span>
                 <span className={`text-lg font-medium flex items-center gap-1 ${
                   selectedCommodity.change >= 0 ? "text-emerald-400" : "text-red-400"
-                }`}
-                >
+                }`}>
                   {selectedCommodity.change >= 0 ? "+" : ""}
-                  {selectedCommodity.change.toFixed(2)} ({selectedCommodity.change >= 0 ? "+" : ""}
+                  {selectedCommodity.change.toFixed(2)} ({selectedCommodity.changePercent >= 0 ? "+" : ""}
                   {selectedCommodity.changePercent.toFixed(2)}%)
                 </span>
               </div>
 
-              {/* Time Range Selector */}
               <div className="flex items-center gap-2 mt-6">
                 {TIME_RANGES.map((range) => (
                   <button
@@ -531,80 +438,91 @@ export default function NewsPage() {
               </div>
             </div>
 
-            {/* Chart */}
             <div className="p-6">
               <div className="h-[400px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={getChartData(selectedCommodity)}>
-                    <defs>
-                      <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#5b8aff" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#5b8aff" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a35" />
-                    <XAxis 
-                      dataKey="time" 
-                      stroke="#5a5a6a" 
-                      tick={{ fill: "#8a8a9a", fontSize: 12 }}
-                      tickLine={false}
-                    />
-                    <YAxis 
-                      stroke="#5a5a6a" 
-                      tick={{ fill: "#8a8a9a", fontSize: 12 }}
-                      tickLine={false}
-                      domain={["auto", "auto"]}
-                      tickFormatter={(val) => formatPrice(val)}
-                    />
-                    
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#13131f",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: "8px",
-                        color: "#fff",
-                      }}
-                      formatter={(val) => [formatPrice(Number(val)), "Pris"]}
-                    />
-                    
-                    <Area
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#5b8aff"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorPrice)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {selectedCommodity.history.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={getChartData(selectedCommodity)}>
+                      <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#5b8aff" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#5b8aff" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a35" />
+                      <XAxis 
+                        dataKey="time" 
+                        stroke="#5a5a6a" 
+                        tick={{ fill: "#8a8a9a", fontSize: 12 }}
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        stroke="#5a5a6a" 
+                        tick={{ fill: "#8a8a9a", fontSize: 12 }}
+                        tickLine={false}
+                        domain={["auto", "auto"]}
+                        tickFormatter={(val) => formatPrice(val)}
+                      />
+                      
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#13131f",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: "8px",
+                          color: "#fff",
+                        }}
+                        formatter={(val) => [formatPrice(Number(val)), "Pris"]}
+                      />
+                      
+                      <Area
+                        type="monotone"
+                        dataKey="price"
+                        stroke="#5b8aff"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorPrice)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <RefreshCw className="w-8 h-8 text-[#5a5a6a] animate-spin" />
+                  </div>
+                )}
               </div>
 
-              {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4 mt-6">
                 <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                   <p className="text-xs text-[#5a5a6a] mb-1">Høyeste (periode)</p>
                   <p className="text-lg font-semibold text-white">
-                    {formatPrice(Math.max(...getFilteredHistory(selectedCommodity, chartRange).map((p) => p.price)))}
+                    {selectedCommodity.history.length > 0 
+                      ? formatPrice(Math.max(...getFilteredHistory(selectedCommodity, chartRange).map((p) => p.price)))
+                      : "—"}
                   </p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                   <p className="text-xs text-[#5a5a6a] mb-1">Laveste (periode)</p>
                   <p className="text-lg font-semibold text-white">
-                    {formatPrice(Math.min(...getFilteredHistory(selectedCommodity, chartRange).map((p) => p.price)))}
+                    {selectedCommodity.history.length > 0
+                      ? formatPrice(Math.min(...getFilteredHistory(selectedCommodity, chartRange).map((p) => p.price)))
+                      : "—"}
                   </p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                   <p className="text-xs text-[#5a5a6a] mb-1">Endring (periode)</p>
                   <p className={`text-lg font-semibold ${
-                    getFilteredHistory(selectedCommodity, chartRange).slice(-1)[0]?.price >=
-                    getFilteredHistory(selectedCommodity, chartRange)[0]?.price
-                      ? "text-emerald-400" : "text-red-400"
+                    (() => {
+                      const hist = getFilteredHistory(selectedCommodity, chartRange);
+                      if (hist.length < 2) return "text-[#8a8a9a]";
+                      return hist[hist.length - 1]?.price >= hist[0]?.price ? "text-emerald-400" : "text-red-400";
+                    })()
                   }`}>
                     {(() => {
                       const hist = getFilteredHistory(selectedCommodity, chartRange);
-                      if (hist.length < 2) return "0.00%";
+                      if (hist.length < 2) return "—";
                       const first = hist[0].price;
                       const last = hist[hist.length - 1].price;
                       const change = ((last - first) / first) * 100;
@@ -618,7 +536,7 @@ export default function NewsPage() {
                   <p className="text-lg font-semibold text-white">
                     {(() => {
                       const hist = getFilteredHistory(selectedCommodity, chartRange);
-                      if (hist.length < 2) return "0.00%";
+                      if (hist.length < 2) return "—";
                       const prices = hist.map((p) => p.price);
                       const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
                       const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / prices.length;
@@ -650,13 +568,9 @@ export default function NewsPage() {
                   selectedArticle.category === "commodities" ? "bg-amber-500/10 text-amber-400" :
                   selectedArticle.category === "markets" ? "bg-emerald-500/10 text-emerald-400" :
                   "bg-blue-500/10 text-blue-400"
-                }`}
-                >
-                  {selectedArticle.category}
-                </span>
+                }`}>{selectedArticle.category}</span>
                 <span className="text-xs text-[#5a5a6a]">{selectedArticle.source}</span>
               </div>
-              
               <button onClick={() => setSelectedArticle(null)} className="p-2 rounded-lg hover:bg-white/[0.04] text-[#5a5a6a]">
                 <X className="w-5 h-5" />
               </button>
@@ -668,18 +582,15 @@ export default function NewsPage() {
 
               <div className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-between">
                 <span className="text-sm text-[#5a5a6a] flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  {getRelativeTime(selectedArticle.publishedAt)}
+                  <Clock className="w-4 h-4" />{getRelativeTime(selectedArticle.publishedAt)}
                 </span>
-
                 <a
                   href={selectedArticle.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 bg-[#5b8aff] text-white rounded-lg hover:bg-[#5b8aff]/90"
                 >
-                  Les full artikkel
-                  <ExternalLink className="w-4 h-4" />
+                  Les full artikkel <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
             </div>
