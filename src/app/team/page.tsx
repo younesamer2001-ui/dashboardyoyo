@@ -645,7 +645,7 @@ export default function TeamChatPage() {
                         key={agent.id}
                         onClick={() => {
                           if (agent.id === "ceo") return; // CEO always included
-                          setSelectedMembers((prev) =
+                          setSelectedMembers((prev) =>
                             isSelected
                               ? prev.filter((id) => id !== agent.id)
                               : [...prev, agent.id]
