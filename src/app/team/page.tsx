@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Users, Send, Bot, Crown, TrendingUp, Megaphone, Calculator, 
-  Code, Palette, Briefcase, Sparkles, Loader2, CheckCircle2,
-  Clock, MessageSquare
+  Users, Send, Crown, TrendingUp, Megaphone, Calculator, 
+  Code, Palette, Briefcase, Sparkles, Loader2,
+  ChevronDown, Plus, FolderKanban, Hash, Settings,
+  MoreHorizontal, Archive, Edit3, Trash2, X
 } from "lucide-react";
 
 interface TeamMember {
@@ -17,6 +18,16 @@ interface TeamMember {
   status: "online" | "thinking" | "offline";
 }
 
+interface TeamChat {
+  id: string;
+  name: string;
+  project: string;
+  description: string;
+  members: string[]; // Agent IDs
+  messages: Message[];
+  createdAt: string;
+}
+
 interface Message {
   id: string;
   senderId: string;
@@ -25,10 +36,10 @@ interface Message {
   text: string;
   timestamp: string;
   type: "user" | "agent" | "ceo-summary";
-  isThinking?: boolean;
 }
 
-const teamMembers: TeamMember[] = [
+// Available agents
+const availableAgents: TeamMember[] = [
   {
     id: "ceo",
     name: "Kimi",
@@ -85,17 +96,65 @@ const teamMembers: TeamMember[] = [
   },
 ];
 
+// Default teams
+const defaultTeams: TeamChat[] = [
+  {
+    id: "executive",
+    name: "Executive Team",
+    project: "All Projects",
+    description: "Full team for strategic decisions",
+    members: ["ceo", "marketing", "finance", "developer"],
+    messages: [],
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "dashboard",
+    name: "Dashboard YOYO Team",
+    project: "Dashboard YOYO",
+    description: "Product team for Dashboard development",
+    members: ["ceo", "developer", "designer", "marketing"],
+    messages: [],
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "siha",
+    name: "Siha E-commerce",
+    project: "Siha Shopify",
+    description: "Marketing and design focus for Siha",
+    members: ["ceo", "marketing", "social", "designer"],
+    messages: [],
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "dev-only",
+    name: "Dev Team",
+    project: "Technical",
+    description: "Technical discussions only",
+    members: ["ceo", "developer"],
+    messages: [],
+    createdAt: new Date().toISOString(),
+  },
+];
+
 export default function TeamChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [teams, setTeams] = useState<TeamChat[]>(defaultTeams);
+  const [activeTeamId, setActiveTeamId] = useState("executive");
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [thinkingAgents, setThinkingAgents] = useState<Set<string>>(new Set());
-  const [agents, setAgents] = useState(teamMembers);
+  const [showTeamSelector, setShowTeamSelector] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamProject, setNewTeamProject] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>(["ceo"]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const activeTeam = teams.find(t => t.id === activeTeamId) || teams[0];
+  const activeMembers = availableAgents.filter(a => activeTeam.members.includes(a.id));
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [activeTeam.messages]);
 
   const sendMessage = async () => {
     if (!inputText.trim() || isProcessing) return;
@@ -110,41 +169,39 @@ export default function TeamChatPage() {
       type: "user",
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputText("");
-    setIsProcessing(true);
-
-    // Determine which agents should respond
-    const relevantAgents = determineRelevantAgents(inputText);
-    
-    // Set agents to "thinking" state
-    setThinkingAgents(new Set(relevantAgents));
-    setAgents((prev) =
-      prev.map((agent) =
-        relevantAgents.includes(agent.id) 
-          ? { ...agent, status: "thinking" } 
-          : agent
+    // Add message to active team
+    setTeams((prev) =>
+      prev.map((team) =
+        team.id === activeTeamId
+          ? { ...team, messages: [...team.messages, userMessage] }
+          : team
       )
     );
 
+    setInputText("");
+    setIsProcessing(true);
+
+    // Determine which agents in this team should respond
+    const relevantAgents = determineRelevantAgents(inputText, activeTeam.members);
+
+    setThinkingAgents(new Set(relevantAgents));
+
     try {
-      // Call API to spawn sub-agents
       const res = await fetch("/api/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: inputText,
-          context: "Younes is the founder and wants input from the team.",
+          context: `Team: ${activeTeam.name}. Project: ${activeTeam.project}. Available specialists: ${activeMembers.map(m => m.name).join(", ")}`,
+          availableAgents: activeTeam.members,
         }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        // Add team responses
         const newMessages: Message[] = [];
 
-        // Add individual agent responses
         data.teamResponses.forEach((response: any) => {
           if (response.agentId !== "ceo") {
             newMessages.push({
@@ -159,7 +216,6 @@ export default function TeamChatPage() {
           }
         });
 
-        // Add CEO summary last
         newMessages.push({
           id: `ceo-${Date.now()}`,
           senderId: "ceo",
@@ -170,167 +226,285 @@ export default function TeamChatPage() {
           type: "ceo-summary",
         });
 
-        setMessages((prev) => [...prev, ...newMessages]);
+        // Add all messages to active team
+        setTeams((prev) =
+          prev.map((team) =
+            team.id === activeTeamId
+              ? { ...team, messages: [...team.messages, ...newMessages] }
+              : team
+          )
+        );
       }
     } catch (error) {
       console.error("Team chat error:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          senderId: "ceo",
-          senderName: "Kimi",
-          senderRole: "AI CEO",
-          text: "I apologize, I'm having trouble coordinating the team right now. Let me try again in a moment.",
-          timestamp: new Date().toISOString(),
-          type: "ceo-summary",
-        },
-      ]);
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        senderId: "ceo",
+        senderName: "Kimi",
+        senderRole: "AI CEO",
+        text: "I apologize, I'm having trouble coordinating the team right now. Let me try again in a moment.",
+        timestamp: new Date().toISOString(),
+        type: "ceo-summary",
+      };
+
+      setTeams((prev) =
+        prev.map((team) =
+          team.id === activeTeamId
+            ? { ...team, messages: [...team.messages, errorMessage] }
+            : team
+        )
+      );
     } finally {
       setIsProcessing(false);
       setThinkingAgents(new Set());
-      setAgents((prev) =
-        prev.map((agent) =
-          agent.status === "thinking" 
-            ? { ...agent, status: "online" } 
-            : agent
-        )
-      );
     }
   };
 
-  const determineRelevantAgents = (message: string): string[] => {
+  const determineRelevantAgents = (message: string, available: string[]): string[] => {
     const lowerMsg = message.toLowerCase();
     const agents: string[] = ["ceo"];
 
     if (lowerMsg.match(/marketing|campaign|social|content|ad|promo|brand|seo|growth/)) {
-      agents.push("marketing", "social");
+      if (available.includes("marketing")) agents.push("marketing");
+      if (available.includes("social")) agents.push("social");
     }
     if (lowerMsg.match(/budget|cost|price|money|finance|tax|revenue|profit/)) {
-      agents.push("finance");
+      if (available.includes("finance")) agents.push("finance");
     }
     if (lowerMsg.match(/code|develop|tech|software|app|website|build|api|database|bug/)) {
-      agents.push("developer");
+      if (available.includes("developer")) agents.push("developer");
     }
     if (lowerMsg.match(/design|ui|ux|brand|logo|visual|interface/)) {
-      agents.push("designer");
+      if (available.includes("designer")) agents.push("designer");
     }
 
     return [...new Set(agents)];
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "thinking":
-        return <Loader2 className="w-3 h-3 animate-spin text-[#5b8aff]" />;
-      case "online":
-        return <div className="w-2 h-2 rounded-full bg-emerald-500" />;
-      default:
-        return <div className="w-2 h-2 rounded-full bg-gray-500" />;
+  const createNewTeam = () => {
+    if (!newTeamName.trim() || selectedMembers.length === 0) return;
+
+    const newTeam: TeamChat = {
+      id: `team-${Date.now()}`,
+      name: newTeamName,
+      project: newTeamProject || "General",
+      description: `Custom team for ${newTeamProject || "general discussions"}`,
+      members: selectedMembers,
+      messages: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    setTeams((prev) => [...prev, newTeam]);
+    setActiveTeamId(newTeam.id);
+    setShowCreateModal(false);
+    setNewTeamName("");
+    setNewTeamProject("");
+    setSelectedMembers(["ceo"]);
+  };
+
+  const deleteTeam = (teamId: string) => {
+    if (teams.length <= 1) return;
+    setTeams((prev) => prev.filter((t) => t.id !== teamId));
+    if (activeTeamId === teamId) {
+      setActiveTeamId(teams.find((t) => t.id !== teamId)?.id || teams[0].id);
     }
   };
 
   return (
     <div className="h-[calc(100vh-6rem)] flex gap-4">
-      {/* Sidebar - Team Members */}
-      <div className="w-64 hidden lg:flex flex-col bg-[#13131f] border border-white/[0.06] rounded-xl overflow-hidden">
+      {/* Sidebar - Team Selector */}
+      <div className="w-72 hidden lg:flex flex-col bg-[#13131f] border border-white/[0.06] rounded-xl overflow-hidden">
         <div className="p-4 border-b border-white/[0.06]">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="w-4 h-4 text-[#5b8aff]" />
-            <span className="font-semibold text-white">Your Team</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#5b8aff]" />
+              <span className="font-semibold text-white">Teams</span>
+            </div>
+            <span className="text-xs text-[#5a5a6a]">{teams.length} teams</span>
           </div>
-          <p className="text-xs text-[#5a5a6a]">AI Agents with specialized roles</p>
+          
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg text-sm text-[#8a8a9a] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Team
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {agents.map((member) => {
-            const Icon = member.icon;
-            const isThinking = member.status === "thinking";
+          {teams.map((team) => {
+            const isActive = team.id === activeTeamId;
+            const memberCount = team.members.length;
 
             return (
-              <div
-                key={member.id}
-                className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
-                  isThinking ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
+              <button
+                key={team.id}
+                onClick={() => setActiveTeamId(team.id)}
+                className={`w-full text-left p-3 rounded-lg transition-all group ${
+                  isActive
+                    ? "bg-[#5b8aff]/10 border border-[#5b8aff]/20"
+                    : "hover:bg-white/[0.04] border border-transparent"
                 }`}
               >
-                <div className={`relative w-10 h-10 rounded-lg flex items-center justify-center ${member.color}`}
-003e
-                  <Icon className="w-5 h-5" />
-                  {member.id === "ceo" && (
-                    <Bot className="absolute -top-1 -right-1 w-3 h-3 text-[#5b8aff] bg-[#0a0a0f] rounded-full" />
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white truncate">{member.name}</span>
-                    {getStatusIcon(member.status)}
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      isActive ? "bg-[#5b8aff]/20" : "bg-white/[0.04]"
+                    }`}
+                  >
+                    <Hash
+                      className={`w-5 h-5 ${
+                        isActive ? "text-[#5b8aff]" : "text-[#5a5a6a]"
+                      }`}
+                    />
                   </div>
-                  <p className="text-xs text-[#5a5a6a] truncate">{member.role}</p>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`font-medium truncate ${
+                          isActive ? "text-white" : "text-[#f0f0f5]"
+                        }`}
+                      >
+                        {team.name}
+                      </span>
+                      {team.id !== "executive" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteTeam(team.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-[#5a5a6a] hover:text-red-400 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-[#5a5a6a] truncate">{team.project}</p>
+
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex -space-x-1">
+                        {team.members.slice(0, 3).map((memberId) => {
+                          const member = availableAgents.find(
+                            (a) => a.id === memberId
+                          );
+                          if (!member) return null;
+                          const Icon = member.icon;
+                          return (
+                            <div
+                              key={memberId}
+                              className={`w-5 h-5 rounded-full flex items-center justify-center border border-[#13131f] ${member.color}`}
+                            >
+                              <Icon className="w-2.5 h-2.5" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span className="text-xs text-[#5a5a6a]">{memberCount} members</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </button>
             );
           })}
-        </div>
-
-        <div className="p-4 border-t border-white/[0.06] bg-white/[0.02]">
-          <div className="flex items-center gap-2 text-xs text-[#8a8a9a]">
-            <Sparkles className="w-3 h-3 text-[#5b8aff]" />
-            <span>AI-powered team coordination</span>
-          </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-[#13131f] border border-white/[0.06] rounded-xl overflow-hidden">
-        {/* Header */}
+        {/* Header with Team Selector */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b8aff]/20 to-[#5b8aff]/5 border border-[#5b8aff]/20 flex items-center justify-center">
-              <Crown className="w-5 h-5 text-[#5b8aff]" />
+            <div className="lg:hidden">
+              <button
+                onClick={() => setShowTeamSelector(!showTeamSelector)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/[0.04] rounded-lg text-sm"
+              >
+                <span className="text-white">{activeTeam.name}</span>
+                <ChevronDown className="w-4 h-4 text-[#5a5a6a]" />
+              </button>
+
+              {showTeamSelector && (
+                <div className="absolute top-16 left-4 right-4 bg-[#1c1c28] border border-white/[0.08] rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+                  {teams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => {
+                        setActiveTeamId(team.id);
+                        setShowTeamSelector(false);
+                      }}
+                      className={`w-full text-left px-4 py-3 hover:bg-white/[0.04] ${
+                        team.id === activeTeamId ? "bg-[#5b8aff]/10" : ""
+                      }`}
+                    >
+                      <p className="text-white font-medium">{team.name}</p>
+                      <p className="text-xs text-[#5a5a6a]">{team.project}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
-              <h2 className="font-semibold text-white">Executive Team</h2>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs text-[#8a8a9a]">Kimi coordinating {thinkingAgents.size > 0 ? `${thinkingAgents.size} agents` : 'team'}</span>
+
+            <div className="hidden lg:block">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b8aff]/20 to-[#5b8aff]/5 border border-[#5b8aff]/20 flex items-center justify-center"
+003e
+                  <FolderKanban className="w-5 h-5 text-[#5b8aff]" />
+                </div>
+
+                <div>
+                  <h2 className="font-semibold text-white">{activeTeam.name}</h2>
+                  <p className="text-xs text-[#8a8a9a]">{activeTeam.project}</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {isProcessing && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#5b8aff]/10 text-[#5b8aff] text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Coordinating...</span>
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {activeMembers.slice(0, 4).map((member) => {
+                const Icon = member.icon;
+                return (
+                  <div
+                    key={member.id}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center border-2 border-[#13131f] ${member.color}`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </div>
+                );
+              })}
             </div>
-          )}
+
+            <button className="p-2 rounded-lg hover:bg-white/[0.04] text-[#5a5a6a]">
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && (
+          {activeTeam.messages.length === 0 && (
             <div className="text-center py-12">
               <div className="w-16 h-16 rounded-2xl bg-[#5b8aff]/10 flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="w-8 h-8 text-[#5b8aff]" />
+                <Users className="w-8 h-8 text-[#5b8aff]" />
               </div>
-              <p className="text-white font-medium mb-2">Welcome to your AI Executive Team</p>
+              <p className="text-white font-medium mb-2">{activeTeam.name}</p>
               <p className="text-sm text-[#8a8a9a] max-w-md mx-auto mb-6">
-                Ask any business question and Kimi (CEO) will coordinate the right specialists 
-                to provide expert input.
+                {activeTeam.description}
               </p>
+
               <div className="flex flex-wrap justify-center gap-2">
                 {[
-                  "Should we increase marketing spend?",
-                  "What's our technical debt situation?",
-                  "How can we improve cash flow?",
-                  "Ideas for social media growth?",
+                  "What's our strategy?",
+                  "How do we improve this?",
+                  "What's the timeline?",
+                  "Any blockers?",
                 ].map((suggestion) => (
                   <button
                     key={suggestion}
-                    onClick={() => {
-                      setInputText(suggestion);
-                    }}
+                    onClick={() => setInputText(suggestion)}
                     className="px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg text-sm text-[#8a8a9a] transition-colors"
                   >
                     {suggestion}
@@ -340,7 +514,7 @@ export default function TeamChatPage() {
             </div>
           )}
 
-          {messages.map((message) => {
+          {activeTeam.messages.map((message) => {
             const isUser = message.type === "user";
             const isCEO = message.type === "ceo-summary";
 
@@ -361,7 +535,7 @@ export default function TeamChatPage() {
                   {isUser ? (
                     <Briefcase className="w-4 h-4" />
                   ) : (
-                    <Bot className="w-4 h-4" />
+                    <Sparkles className="w-4 h-4" />
                   )}
                 </div>
 
@@ -369,9 +543,6 @@ export default function TeamChatPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-medium text-white">{message.senderName}</span>
                     <span className="text-xs text-[#5a5a6a]">{message.senderRole}</span>
-                    <span className="text-xs text-[#5a5a6a]">
-                      {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
                   </div>
 
                   <div
@@ -393,7 +564,7 @@ export default function TeamChatPage() {
           {thinkingAgents.size > 0 && (
             <div className="flex items-center gap-3 text-sm text-[#5a5a6a]">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Kimi is consulting with the team...</u003e/span>
+              <span>Kimi is consulting with the team...</span>
             </div>
           )}
 
@@ -409,7 +580,7 @@ export default function TeamChatPage() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !isProcessing && sendMessage()}
-                placeholder={isProcessing ? "Kimi is coordinating..." : "Ask your executive team..."}
+                placeholder={isProcessing ? "Kimi is coordinating..." : `Ask ${activeTeam.name}...`}
                 disabled={isProcessing}
                 className="w-full bg-[#0a0a0f] border border-white/[0.06] rounded-xl px-4 py-3 pr-12 text-white placeholder-[#5a5a6a] focus:outline-none focus:border-[#5b8aff]/30 disabled:opacity-50"
               />
@@ -423,12 +594,98 @@ export default function TeamChatPage() {
               </button>
             </div>
           </div>
-
-          <p className="text-xs text-[#5a5a6a] mt-2">
-            Kimi (CEO) will route your question to the appropriate specialists and provide an executive summary.
-          </p>
         </div>
       </div>
+
+      {/* Create Team Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#13131f] border border-white/[0.08] rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Create New Team</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-[#5a5a6a] hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-[#8a8a9a] mb-2 block">Team Name</label>
+                <input
+                  type="text"
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  placeholder="e.g. Marketing Team"
+                  className="w-full bg-[#0a0a0f] border border-white/[0.06] rounded-lg px-4 py-2.5 text-white placeholder-[#5a5a6a] focus:outline-none focus:border-[#5b8aff]/30"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-[#8a8a9a] mb-2 block">Project (optional)</label>
+                <input
+                  type="text"
+                  value={newTeamProject}
+                  onChange={(e) => setNewTeamProject(e.target.value)}
+                  placeholder="e.g. Q1 Campaign"
+                  className="w-full bg-[#0a0a0f] border border-white/[0.06] rounded-lg px-4 py-2.5 text-white placeholder-[#5a5a6a] focus:outline-none focus:border-[#5b8aff]/30"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-[#8a8a9a] mb-2 block">Select Members</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {availableAgents.map((agent) => {
+                    const Icon = agent.icon;
+                    const isSelected = selectedMembers.includes(agent.id);
+
+                    return (
+                      <button
+                        key={agent.id}
+                        onClick={() => {
+                          if (agent.id === "ceo") return; // CEO always included
+                          setSelectedMembers((prev) =
+                            isSelected
+                              ? prev.filter((id) => id !== agent.id)
+                              : [...prev, agent.id]
+                          );
+                        }}
+                        disabled={agent.id === "ceo"}
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border transition-all ${
+                          isSelected
+                            ? "bg-white/[0.08] border-white/[0.15]"
+                            : "bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.04]"
+                        } ${agent.id === "ceo" ? "opacity-70" : ""}`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${agent.color}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm text-white">{agent.name}</p>
+                          <p className="text-xs text-[#5a5a6a]">{agent.role}</p>
+                        </div>
+                        {isSelected && (
+                          <CheckCircle2 className="w-4 h-4 text-[#5b8aff] ml-auto" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                onClick={createNewTeam}
+                disabled={!newTeamName.trim() || selectedMembers.length === 0}
+                className="w-full py-2.5 bg-[#5b8aff] text-white rounded-lg font-medium hover:bg-[#5b8aff]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Create Team
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

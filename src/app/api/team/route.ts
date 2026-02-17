@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     activeDiscussions.set(discussionId, discussion);
 
     // Determine which agents should respond based on message content
-    const relevantAgents = determineRelevantAgents(message);
+    const relevantAgents = determineRelevantAgents(message, body.availableAgents);
     
     // Spawn agents in parallel
     const agentPromises = relevantAgents.map(agentId => 
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     // Now spawn CEO to summarize and make recommendation
     discussion.status = 'summarizing';
-    const ceoSummary = await spawnCEO Summary(message, discussion, context);
+    const ceoSummary = await spawnCEOSummary(message, discussion, context);
     
     discussion.status = 'complete';
 
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Determine which agents should respond based on message content
-function determineRelevantAgents(message: string): string[] {
+function determineRelevantAgents(message: string, availableAgents?: string[]): string[] {
   const lowerMsg = message.toLowerCase();
   const agents: string[] = [];
   
@@ -177,28 +177,37 @@ function determineRelevantAgents(message: string): string[] {
   
   // Check for marketing/social keywords
   if (lowerMsg.match(/marketing|campaign|social|content|ad|promo|brand|seo|growth|lead/)) {
-    agents.push('marketing');
-    agents.push('social');
+    if (!availableAgents || availableAgents.includes('marketing')) agents.push('marketing');
+    if (!availableAgents || availableAgents.includes('social')) agents.push('social');
   }
   
   // Check for finance keywords
   if (lowerMsg.match(/budget|cost|price|money|finance|tax|revenue|profit|accounting|invoice/)) {
-    agents.push('finance');
+    if (!availableAgents || availableAgents.includes('finance')) agents.push('finance');
   }
   
   // Check for tech keywords
   if (lowerMsg.match(/code|develop|tech|software|app|website|build|api|database|bug|feature/)) {
-    agents.push('developer');
+    if (!availableAgents || availableAgents.includes('developer')) agents.push('developer');
   }
   
   // Check for design keywords
   if (lowerMsg.match(/design|ui|ux|brand|logo|visual|interface|user experience|mockup/)) {
-    agents.push('designer');
+    if (!availableAgents || availableAgents.includes('designer')) agents.push('designer');
   }
   
-  // If no specific domain found, include all specialists
+  // Filter to only available agents if specified
+  if (availableAgents) {
+    return agents.filter(id => availableAgents.includes(id));
+  }
+  
+  // If no specific domain found, include all available specialists
   if (agents.length === 1) { // Only CEO
-    return ['ceo', 'marketing', 'developer', 'designer'];
+    const fallback = ['marketing', 'developer', 'designer'];
+    if (availableAgents) {
+      return ['ceo', ...fallback.filter(id => availableAgents.includes(id))];
+    }
+    return ['ceo', ...fallback];
   }
   
   return [...new Set(agents)];
