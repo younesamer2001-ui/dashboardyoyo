@@ -128,6 +128,26 @@ const createInitialCommodities = (): Commodity[] => [
     icon: Building2,
     history: generatePriceHistory(2250, 0.02),
   },
+  {
+    symbol: "NOK",
+    name: "Norsk Krone",
+    currentPrice: 11.45,
+    change: -0.08,
+    changePercent: -0.69,
+    unit: "NOK/EUR",
+    icon: TrendingUp,
+    history: generatePriceHistory(11.45, 0.008),
+  },
+  {
+    symbol: "USD",
+    name: "US Dollar",
+    currentPrice: 1.08,
+    change: 0.02,
+    changePercent: 1.89,
+    unit: "USD/EUR",
+    icon: DollarSign,
+    history: generatePriceHistory(1.08, 0.012),
+  },
 ];
 
 // Generate full content for articles
@@ -303,7 +323,7 @@ export default function NewsPage() {
       </div>
 
       {/* Commodity Cards - Clickable */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         {commodities.map((commodity) => {
           const Icon = commodity.icon;
           const isPositive = commodity.change >= 0;
