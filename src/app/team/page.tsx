@@ -2,377 +2,401 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Users, Send, MoreHorizontal, Phone, Video, 
-  Crown, TrendingUp, Megaphone, Calculator, 
-  Code, Palette, Briefcase, Bot, Plus,
-  PhoneCall, Mail, ChevronDown, X, Sparkles
+  Users, Send, Bot, Crown, TrendingUp, Megaphone, Calculator, 
+  Code, Palette, Briefcase, Sparkles, Loader2, CheckCircle2,
+  Clock, MessageSquare
 } from "lucide-react";
 
 interface TeamMember {
   id: string;
   name: string;
   role: string;
-  avatar: string;
-  status: "online" | "away" | "busy" | "offline";
   specialty: string;
   icon: any;
   color: string;
+  status: "online" | "thinking" | "offline";
 }
 
 interface Message {
   id: string;
   senderId: string;
+  senderName: string;
+  senderRole: string;
   text: string;
   timestamp: string;
-  type: "text" | "system";
+  type: "user" | "agent" | "ceo-summary";
+  isThinking?: boolean;
 }
 
 const teamMembers: TeamMember[] = [
   {
-    id: "kimi",
+    id: "ceo",
     name: "Kimi",
     role: "AI CEO",
-    avatar: "K",
-    status: "online",
     specialty: "Strategy, Planning, Oversight",
     icon: Crown,
-    color: "text-[#5b8aff] bg-[#5b8aff]/10 border-[#5b8aff]/20",
+    color: "text-[#5b8aff] bg-[#5b8aff]/10",
+    status: "online",
   },
   {
-    id: "markus",
+    id: "marketing",
     name: "Markus",
     role: "Marketing Lead",
-    avatar: "M",
-    status: "online",
     specialty: "Campaigns, Analytics, Growth",
     icon: TrendingUp,
-    color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    color: "text-emerald-400 bg-emerald-500/10",
+    status: "offline",
   },
   {
-    id: "sarah",
+    id: "social",
     name: "Sarah",
     role: "Social Media Manager",
-    avatar: "S",
-    status: "online",
     specialty: "Content, Engagement, Brand",
     icon: Megaphone,
-    color: "text-pink-400 bg-pink-500/10 border-pink-500/20",
+    color: "text-pink-400 bg-pink-500/10",
+    status: "offline",
   },
   {
-    id: "erik",
+    id: "finance",
     name: "Erik",
     role: "Accountant",
-    avatar: "E",
-    status: "away",
     specialty: "Tax, Bookkeeping, Finance",
     icon: Calculator,
-    color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    color: "text-amber-400 bg-amber-500/10",
+    status: "offline",
   },
   {
-    id: "alex",
+    id: "developer",
     name: "Alex",
     role: "Developer",
-    avatar: "A",
-    status: "online",
     specialty: "Code, Architecture, DevOps",
     icon: Code,
-    color: "text-purple-400 bg-purple-500/10 border-purple-500/20",
+    color: "text-purple-400 bg-purple-500/10",
+    status: "offline",
   },
   {
-    id: "lisa",
+    id: "designer",
     name: "Lisa",
     role: "Designer",
-    avatar: "L",
-    status: "busy",
     specialty: "UI/UX, Branding, Assets",
     icon: Palette,
-    color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
-  },
-  {
-    id: "younes",
-    name: "Younes",
-    role: "Founder",
-    avatar: "Y",
-    status: "online",
-    specialty: "Vision, Decisions, Leadership",
-    icon: Briefcase,
-    color: "text-white bg-white/10 border-white/20",
+    color: "text-cyan-400 bg-cyan-500/10",
+    status: "offline",
   },
 ];
-
-const initialMessages: Message[] = [
-  {
-    id: "1",
-    senderId: "kimi",
-    text: "God morgen team! Jeg har gått gjennom tallene for denne måneden. Vi ser en 15% økning i leads fra sosiale medier. Bra jobba, Sarah! 📈",
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    type: "text",
-  },
-  {
-    id: "2",
-    senderId: "sarah",
-    text: "Takk! Den nye TikTok-strategien fungerer virkelig. Jeg planlegger å øke posting til 2x daglig neste uke. Noen innvendinger?",
-    timestamp: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
-    type: "text",
-  },
-  {
-    id: "3",
-    senderId: "markus",
-    text: "Høres bra ut! Men husk å A/B teste først. Jeg kan sette opp tracking for å måle engasjement per post. @Alex - kan du hjelpe med dashboard?",
-    timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    type: "text",
-  },
-  {
-    id: "4",
-    senderId: "alex",
-    text: "Selvfølgelig! Jeg skal integrere det med vår eksisterende analytics. Skal ha det klart innen fredag.",
-    timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    type: "text",
-  },
-  {
-    id: "5",
-    senderId: "kimi",
-    text: "Perfekt. @Erik - kan du sjekke om vi har budsjett for økt annonsering? Jeg vil gjerne skalere det som fungerer.",
-    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    type: "text",
-  },
-  {
-    id: "6",
-    senderId: "erik",
-    text: "Ser på det nå. Vi har ca 25k igjen i Q1-budsjettet. Kan omprioritere fra tradisjonell annonsering til sosiale medier hvis dere ønsker.",
-    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    type: "text",
-  },
-];
-
-function getRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHour = Math.floor(diffMin / 60);
-
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour === 1) return "1h ago";
-  return `${diffHour}h ago`;
-}
 
 export default function TeamChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
-  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
-  const [showMemberInfo, setShowMemberInfo] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [thinkingAgents, setThinkingAgents] = useState<Set<string>>(new Set());
+  const [agents, setAgents] = useState(teamMembers);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Simulate team member responses
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        const responders = teamMembers.filter(m => m.id !== "younes" && m.status === "online");
-        const responder = responders[Math.floor(Math.random() * responders.length)];
-        
-        const responses = [
-          "Godt poeng! Jeg ser på det.",
-          "Enig. Skal vi planlegge et møte?",
-          "Har dere sett de nye tallene?",
-          "Jeg kan ta det videre.",
-          "Flott arbeid alle sammen! 👏",
-        ];
-        
-        const newMessage: Message = {
-          id: Date.now().toString(),
-          senderId: responder.id,
-          text: responses[Math.floor(Math.random() * responses.length)],
-          timestamp: new Date().toISOString(),
-          type: "text",
-        };
-        
-        setMessages(prev => [...prev, newMessage]);
-      }
-    }, 30000); // Every 30 seconds
+  const sendMessage = async () => {
+    if (!inputText.trim() || isProcessing) return;
 
-    return () => clearInterval(interval);
-  }, []);
-
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
-    
-    const newMessage: Message = {
+    const userMessage: Message = {
       id: Date.now().toString(),
       senderId: "younes",
+      senderName: "Younes",
+      senderRole: "Founder",
       text: inputText,
       timestamp: new Date().toISOString(),
-      type: "text",
+      type: "user",
     };
-    
-    setMessages(prev => [...prev, newMessage]);
+
+    setMessages((prev) => [...prev, userMessage]);
     setInputText("");
+    setIsProcessing(true);
+
+    // Determine which agents should respond
+    const relevantAgents = determineRelevantAgents(inputText);
     
-    // Simulate AI response after 1-3 seconds
-    setTimeout(() => {
-      const aiResponses = [
-        "Bra innspill, Younes! Jeg skal følge opp.",
-        "Notert. Skal prioriteres.",
-        "Enig med deg. Skal vi diskutere det på neste møte?",
-        "Perfekt! Jeg tar det videre.",
-        "God idé! Skal undersøke mulighetene.",
-      ];
-      
-      const responder = teamMembers.find(m => m.id === "kimi") || teamMembers[1];
-      
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: responder.id,
-        text: aiResponses[Math.floor(Math.random() * aiResponses.length)],
-        timestamp: new Date().toISOString(),
-        type: "text",
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
-    }, 1000 + Math.random() * 2000);
+    // Set agents to "thinking" state
+    setThinkingAgents(new Set(relevantAgents));
+    setAgents((prev) =
+      prev.map((agent) =
+        relevantAgents.includes(agent.id) 
+          ? { ...agent, status: "thinking" } 
+          : agent
+      )
+    );
+
+    try {
+      // Call API to spawn sub-agents
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: inputText,
+          context: "Younes is the founder and wants input from the team.",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // Add team responses
+        const newMessages: Message[] = [];
+
+        // Add individual agent responses
+        data.teamResponses.forEach((response: any) => {
+          if (response.agentId !== "ceo") {
+            newMessages.push({
+              id: `agent-${response.agentId}-${Date.now()}`,
+              senderId: response.agentId,
+              senderName: response.name,
+              senderRole: response.role,
+              text: response.response,
+              timestamp: new Date().toISOString(),
+              type: "agent",
+            });
+          }
+        });
+
+        // Add CEO summary last
+        newMessages.push({
+          id: `ceo-${Date.now()}`,
+          senderId: "ceo",
+          senderName: "Kimi",
+          senderRole: "AI CEO",
+          text: data.ceoSummary,
+          timestamp: new Date().toISOString(),
+          type: "ceo-summary",
+        });
+
+        setMessages((prev) => [...prev, ...newMessages]);
+      }
+    } catch (error) {
+      console.error("Team chat error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          senderId: "ceo",
+          senderName: "Kimi",
+          senderRole: "AI CEO",
+          text: "I apologize, I'm having trouble coordinating the team right now. Let me try again in a moment.",
+          timestamp: new Date().toISOString(),
+          type: "ceo-summary",
+        },
+      ]);
+    } finally {
+      setIsProcessing(false);
+      setThinkingAgents(new Set());
+      setAgents((prev) =
+        prev.map((agent) =
+          agent.status === "thinking" 
+            ? { ...agent, status: "online" } 
+            : agent
+        )
+      );
+    }
   };
 
-  const onlineCount = teamMembers.filter(m => m.status === "online").length;
+  const determineRelevantAgents = (message: string): string[] => {
+    const lowerMsg = message.toLowerCase();
+    const agents: string[] = ["ceo"];
+
+    if (lowerMsg.match(/marketing|campaign|social|content|ad|promo|brand|seo|growth/)) {
+      agents.push("marketing", "social");
+    }
+    if (lowerMsg.match(/budget|cost|price|money|finance|tax|revenue|profit/)) {
+      agents.push("finance");
+    }
+    if (lowerMsg.match(/code|develop|tech|software|app|website|build|api|database|bug/)) {
+      agents.push("developer");
+    }
+    if (lowerMsg.match(/design|ui|ux|brand|logo|visual|interface/)) {
+      agents.push("designer");
+    }
+
+    return [...new Set(agents)];
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "thinking":
+        return <Loader2 className="w-3 h-3 animate-spin text-[#5b8aff]" />;
+      case "online":
+        return <div className="w-2 h-2 rounded-full bg-emerald-500" />;
+      default:
+        return <div className="w-2 h-2 rounded-full bg-gray-500" />;
+    }
+  };
 
   return (
     <div className="h-[calc(100vh-6rem)] flex gap-4">
-      
       {/* Sidebar - Team Members */}
       <div className="w-64 hidden lg:flex flex-col bg-[#13131f] border border-white/[0.06] rounded-xl overflow-hidden">
         <div className="p-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 mb-1">
             <Users className="w-4 h-4 text-[#5b8aff]" />
-            <span className="font-semibold text-white">Team</span>
+            <span className="font-semibold text-white">Your Team</span>
           </div>
-          <p className="text-xs text-[#5a5a6a]">{onlineCount} of {teamMembers.length} online</p>
+          <p className="text-xs text-[#5a5a6a]">AI Agents with specialized roles</p>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {teamMembers.map((member) => {
+          {agents.map((member) => {
             const Icon = member.icon;
-            const lastMessage = messages
-              .filter(m => m.senderId === member.id)
-              .pop();
-            
+            const isThinking = member.status === "thinking";
+
             return (
-              <button
+              <div
                 key={member.id}
-                onClick={() => {
-                  setSelectedMember(member);
-                  setShowMemberInfo(true);
-                }}
-                className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.04] transition-colors text-left group"
+                className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
+                  isThinking ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
+                }`}
               >
-                <div className="relative">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold ${member.color}`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#13131f] ${
-                    member.status === "online" ? "bg-emerald-500" :
-                    member.status === "away" ? "bg-amber-500" :
-                    member.status === "busy" ? "bg-red-500" :
-                    "bg-gray-500"
-                  }`} />
+                <div className={`relative w-10 h-10 rounded-lg flex items-center justify-center ${member.color}`}
+003e
+                  <Icon className="w-5 h-5" />
+                  {member.id === "ceo" && (
+                    <Bot className="absolute -top-1 -right-1 w-3 h-3 text-[#5b8aff] bg-[#0a0a0f] rounded-full" />
+                  )}
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white truncate">{member.name}</span>
-                    {member.id === "kimi" && (
-                      <Bot className="w-3 h-3 text-[#5b8aff]" />
-                    )}
+                    {getStatusIcon(member.status)}
                   </div>
                   <p className="text-xs text-[#5a5a6a] truncate">{member.role}</p>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
-        
-        <div className="p-3 border-t border-white/[0.06]">
-          <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-sm text-[#8a8a9a] transition-colors">
-            <Plus className="w-4 h-4" />
-            Invite Member
-          </button>
+
+        <div className="p-4 border-t border-white/[0.06] bg-white/[0.02]">
+          <div className="flex items-center gap-2 text-xs text-[#8a8a9a]">
+            <Sparkles className="w-3 h-3 text-[#5b8aff]" />
+            <span>AI-powered team coordination</span>
+          </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-[#13131f] border border-white/[0.06] rounded-xl overflow-hidden">
-        
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b8aff]/20 to-[#5b8aff]/5 border border-[#5b8aff]/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#5b8aff]" />
+              <Crown className="w-5 h-5 text-[#5b8aff]" />
             </div>
             <div>
-              <h2 className="font-semibold text-white">Team Chat</h2>
+              <h2 className="font-semibold text-white">Executive Team</h2>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs text-[#8a8a9a]">{onlineCount} online</span>
+                <span className="text-xs text-[#8a8a9a]">Kimi coordinating {thinkingAgents.size > 0 ? `${thinkingAgents.size} agents` : 'team'}</span>
               </div>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-white/[0.04] text-[#5a5a6a] transition-colors">
-              <Phone className="w-4 h-4" />
-            </button>
-            <button className="p-2 rounded-lg hover:bg-white/[0.04] text-[#5a5a6a] transition-colors">
-              <Video className="w-4 h-4" />
-            </button>
-            <button className="p-2 rounded-lg hover:bg-white/[0.04] text-[#5a5a6a] transition-colors">
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-          </div>
+
+          {isProcessing && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#5b8aff]/10 text-[#5b8aff] text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Coordinating...</span>
+            </div>
+          )}
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="text-center">
-            <span className="text-xs text-[#5a5a6a] bg-[#0a0a0f] px-3 py-1 rounded-full">Today</span>
-          </div>
-          
-          {messages.map((message, i) => {
-            const sender = teamMembers.find(m => m.id === message.senderId);
-            if (!sender) return null;
-            
-            const Icon = sender.icon;
-            const isMe = sender.id === "younes";
-            
+          {messages.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-2xl bg-[#5b8aff]/10 flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="w-8 h-8 text-[#5b8aff]" />
+              </div>
+              <p className="text-white font-medium mb-2">Welcome to your AI Executive Team</p>
+              <p className="text-sm text-[#8a8a9a] max-w-md mx-auto mb-6">
+                Ask any business question and Kimi (CEO) will coordinate the right specialists 
+                to provide expert input.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {[
+                  "Should we increase marketing spend?",
+                  "What's our technical debt situation?",
+                  "How can we improve cash flow?",
+                  "Ideas for social media growth?",
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => {
+                      setInputText(suggestion);
+                    }}
+                    className="px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg text-sm text-[#8a8a9a] transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((message) => {
+            const isUser = message.type === "user";
+            const isCEO = message.type === "ceo-summary";
+
             return (
               <div
                 key={message.id}
-                className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}
+                className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}
               >
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${sender.color}`}>
-                  <Icon className="w-4 h-4" />
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isUser
+                      ? "bg-white text-black"
+                      : isCEO
+                      ? "bg-[#5b8aff]/20 text-[#5b8aff] border border-[#5b8aff]/30"
+                      : "bg-white/[0.06] text-[#8a8a9a]"
+                  }`}
+                >
+                  {isUser ? (
+                    <Briefcase className="w-4 h-4" />
+                  ) : (
+                    <Bot className="w-4 h-4" />
+                  )}
                 </div>
-                
-                <div className={`max-w-[70%] ${isMe ? "items-end" : ""}`}>
+
+                <div className={`max-w-[75%] ${isUser ? "items-end" : ""}`}>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-white">{sender.name}</span>
-                    <span className="text-xs text-[#5a5a6a]">{getRelativeTime(message.timestamp)}</span>
+                    <span className="text-sm font-medium text-white">{message.senderName}</span>
+                    <span className="text-xs text-[#5a5a6a]">{message.senderRole}</span>
+                    <span className="text-xs text-[#5a5a6a]">
+                      {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </div>
-                  
-                  <div className={`p-3 rounded-2xl ${
-                    isMe 
-                      ? "bg-[#5b8aff] text-white rounded-br-md" 
-                      : "bg-[#0a0a0f] border border-white/[0.06] text-[#f0f0f5] rounded-bl-md"
-                  }`}>
-                    <p className="text-sm">{message.text}</p>
+
+                  <div
+                    className={`p-3 rounded-2xl whitespace-pre-wrap ${
+                      isUser
+                        ? "bg-white text-black rounded-br-md"
+                        : isCEO
+                        ? "bg-[#5b8aff]/10 border border-[#5b8aff]/20 text-white rounded-bl-md"
+                        : "bg-[#0a0a0f] border border-white/[0.06] text-[#f0f0f5] rounded-bl-md"
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed">{message.text}</p>
                   </div>
                 </div>
               </div>
             );
           })}
-          
+
+          {thinkingAgents.size > 0 && (
+            <div className="flex items-center gap-3 text-sm text-[#5a5a6a]">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Kimi is consulting with the team...</u003e/span>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -384,70 +408,27 @@ export default function TeamChatPage() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Message the team..."
-                className="w-full bg-[#0a0a0f] border border-white/[0.06] rounded-xl px-4 py-3 text-white placeholder-[#5a5a6a] focus:outline-none focus:border-[#5b8aff]/30 pr-12"
+                onKeyDown={(e) => e.key === "Enter" && !isProcessing && sendMessage()}
+                placeholder={isProcessing ? "Kimi is coordinating..." : "Ask your executive team..."}
+                disabled={isProcessing}
+                className="w-full bg-[#0a0a0f] border border-white/[0.06] rounded-xl px-4 py-3 pr-12 text-white placeholder-[#5a5a6a] focus:outline-none focus:border-[#5b8aff]/30 disabled:opacity-50"
               />
-              
+
               <button
                 onClick={sendMessage}
-                disabled={!inputText.trim()}
+                disabled={!inputText.trim() || isProcessing}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-[#5b8aff] text-white rounded-lg hover:bg-[#5b8aff]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
           </div>
-          
+
           <p className="text-xs text-[#5a5a6a] mt-2">
-            Tip: Mention @kimi, @markus, @sarah to notify specific team members
+            Kimi (CEO) will route your question to the appropriate specialists and provide an executive summary.
           </p>
         </div>
       </div>
-
-      {/* Member Info Panel */}
-      {showMemberInfo && selectedMember && (
-        <div className="w-72 hidden xl:block bg-[#13131f] border border-white/[0.06] rounded-xl overflow-hidden">
-          <div className="p-6 text-center border-b border-white/[0.06]">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 ${selectedMember.color}`}>
-              <selectedMember.icon className="w-8 h-8" />
-            </div>
-            
-            <h3 className="font-semibold text-white text-lg">{selectedMember.name}</h3>
-            <p className="text-[#8a8a9a]">{selectedMember.role}</p>
-            
-            <div className="flex items-center justify-center gap-2 mt-3">
-              <span className={`px-2 py-0.5 rounded-full text-xs ${
-                selectedMember.status === "online" ? "bg-emerald-500/10 text-emerald-400" :
-                selectedMember.status === "away" ? "bg-amber-500/10 text-amber-400" :
-                selectedMember.status === "busy" ? "bg-red-500/10 text-red-400" :
-                "bg-gray-500/10 text-gray-400"
-              }`}>
-                {selectedMember.status}
-              </span>
-            </div>
-          </div>
-          
-          <div className="p-4 space-y-4">
-            <div>
-              <p className="text-xs text-[#5a5a6a] uppercase tracking-wider mb-2">Specialty</p>
-              <p className="text-sm text-[#8a8a9a]">{selectedMember.specialty}</p>
-            </div>
-            
-            <div className="flex gap-2">
-              <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg text-sm text-white transition-colors">
-                <Mail className="w-4 h-4" />
-                Message
-              </button>
-              
-              <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg text-sm text-white transition-colors">
-                <PhoneCall className="w-4 h-4" />
-                Call
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
