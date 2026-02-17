@@ -449,8 +449,7 @@ export default function TeamChatPage() {
 
             <div className="hidden lg:block">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b8aff]/20 to-[#5b8aff]/5 border border-[#5b8aff]/20 flex items-center justify-center"
-003e
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b8aff]/20 to-[#5b8aff]/5 border border-[#5b8aff]/20 flex items-center justify-center">
                   <FolderKanban className="w-5 h-5 text-[#5b8aff]" />
                 </div>
 
