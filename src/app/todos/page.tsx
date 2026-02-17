@@ -5,8 +5,44 @@ import {
   CheckCircle2, Circle, Plus, Trash2, Calendar, 
   User, Bot, ChevronDown, AlertCircle, Clock, 
   Play, Pause, HelpCircle, Filter, Sparkles,
-  AlertTriangle, ArrowRight
+  AlertTriangle, ArrowRight, Bell, FileText, Zap
 } from "lucide-react";
+
+// Task Templates
+const taskTemplates = [
+  {
+    icon: Zap,
+    label: "Bug Fix",
+    title: "Fix bug in ",
+    description: "Investigate and fix the issue",
+    priority: "high" as const,
+    tags: ["bug"]
+  },
+  {
+    icon: FileText,
+    label: "New Feature",
+    title: "Build ",
+    description: "Implement new functionality",
+    priority: "medium" as const,
+    tags: ["feature"]
+  },
+  {
+    icon: Sparkles,
+    label: "UI Polish",
+    title: "Improve UI for ",
+    description: "Enhance visual design and UX",
+    priority: "low" as const,
+    tags: ["ui", "polish"]
+  },
+  {
+    icon: AlertTriangle,
+    label: "Urgent Fix",
+    title: "URGENT: Fix ",
+    description: "Critical issue needs immediate attention",
+    priority: "urgent" as const,
+    tags: ["urgent", "bug"]
+  }
+];
 
 interface Todo {
   id: string;
@@ -85,6 +121,9 @@ export default function TodosPage() {
   const [filter, setFilter] = useState<"all" | "working" | "next" | "blocked" | "completed">("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const fetchTodos = async () => {
     try {
@@ -98,9 +137,26 @@ export default function TodosPage() {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch("/api/notify?unread=true");
+      const data = await res.json();
+      if (data.success) {
+        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    }
+  };
+
   useEffect(() => {
     fetchTodos();
-    const interval = setInterval(fetchTodos, 5000);
+    fetchNotifications();
+    const interval = setInterval(() => {
+      fetchTodos();
+      fetchNotifications();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -170,13 +226,33 @@ export default function TodosPage() {
     }
   };
 
-  const updateWorkStatus = async (id: string, workStatus: string) => {
+  const updateWorkStatus = async (id: string, newStatus: string, todo?: Todo) => {
     try {
       await fetch("/api/todos", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, workStatus }),
+        body: JSON.stringify({ id, workStatus: newStatus }),
       });
+      
+      // Send notification if status is "blocked"
+      if (newStatus === "blocked" && todo) {
+        try {
+          await fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "blocked_task",
+              title: "🚨 Task Blocked - Need Your Help",
+              message: `Kimi needs help with: "${todo.title}"`,
+              taskId: todo.id,
+              priority: todo.priority,
+            }),
+          });
+        } catch (notifyError) {
+          console.error("Failed to send notification:", notifyError);
+        }
+      }
+      
       fetchTodos();
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -263,13 +339,73 @@ export default function TodosPage() {
           </p>
         </div>
         
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl font-medium transition-colors"
-        >
-          <Plus className="h-4 h-4" />
-          Add Task
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
+            >
+              <Bell className="h-5 w-5 text-gray-400" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-bg-card border border-white/[0.08] rounded-2xl shadow-xl z-50 overflow-hidden">
+                <div className="p-3 border-b border-white/[0.06] flex items-center justify-between">
+                  <span className="font-medium text-white">Notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="text-xs text-accent">{unreadCount} new</span>
+                  )}
+                </div>
+                
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="p-4 text-center text-gray-500 text-sm">No notifications</p>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`p-3 border-b border-white/[0.04] hover:bg-white/[0.02] cursor-pointer ${
+                          notif.type === 'blocked_task' ? 'border-l-2 border-l-red-500' : ''
+                        }`}
+                        onClick={() => {
+                          // Mark as read and filter to that task
+                          fetch('/api/notify', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: notif.id }),
+                          });
+                          setShowNotifications(false);
+                          fetchNotifications();
+                        }}
+                      >
+                        <p className="font-medium text-sm text-white">{notif.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{notif.message}</p>
+                        <p className="text-[10px] text-gray-600 mt-1">
+                          {new Date(notif.createdAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl font-medium transition-colors"
+          >
+            <Plus className="h-4 h-4" />
+            Add Task
+          </button>
+        </div>
       </div>
 
       {/* Status Overview */}
@@ -322,6 +458,34 @@ export default function TodosPage() {
       {/* Add Task Form */}
       {showAdd && (
         <div className="p-5 bg-white/[0.02] border border-white/[0.06] rounded-2xl space-y-4">
+          
+          {/* Templates */}
+          <div>
+            <label className="text-sm text-gray-500 mb-2 block">Quick Templates</label>
+            <div className="flex gap-2 flex-wrap">
+              {taskTemplates.map((template) => {
+                const Icon = template.icon;
+                return (
+                  <button
+                    key={template.label}
+                    onClick={() => {
+                      setNewTodo(template.title);
+                      setNewDescription(template.description);
+                      setNewPriority(template.priority);
+                      setNewTags(template.tags);
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-sm text-gray-300 transition-colors"
+                  >
+                    <Icon className="w-4 h-4 text-accent" />
+                    {template.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="h-px bg-white/[0.06]" />
+          
           <div>
             <label className="text-sm text-gray-500 mb-2 block">Task Title</label>
             <input
@@ -641,7 +805,7 @@ export default function TodosPage() {
                               key={key}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                updateWorkStatus(todo.id, key);
+                                updateWorkStatus(todo.id, key, todo);
                                 setOpenDropdown(null);
                               }}
                               className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-white/[0.04] transition-colors ${
