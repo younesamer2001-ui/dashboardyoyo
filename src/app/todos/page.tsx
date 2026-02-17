@@ -364,14 +364,14 @@ export default function TodosPage() {
             {/* Backdrop */}
             {showNotifications && (
               <div 
-                className="fixed inset-0 z-40"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
                 onClick={() => setShowNotifications(false)}
               />
             )}
             
-            {/* Notifications Dropdown - Improved */}
+            {/* Notifications Dropdown - Fixed for mobile */}
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 bg-[#111118] border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/50 z-50 overflow-hidden">
+              <div className="fixed sm:absolute left-4 right-4 sm:right-0 sm:left-auto sm:w-96 top-20 sm:top-full sm:mt-3 bg-[#111118] border border-white/[0.15] rounded-2xl shadow-2xl shadow-black/80 z-[70] overflow-hidden">
                 <div className="p-4 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
                   <div className="flex items-center gap-2">
                     <Bell className="w-4 h-4 text-accent" />
