@@ -16,6 +16,8 @@ interface Todo {
   priority: "urgent" | "high" | "medium" | "low";
   assignee: "user" | "kimi";
   workStatus: "pending" | "working" | "next" | "blocked" | "completed";
+  dueDate?: string;
+  tags: string[];
   createdAt: string;
   hasAgent?: boolean;
 }
@@ -76,8 +78,12 @@ export default function TodosPage() {
   const [newTodo, setNewTodo] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newPriority, setNewPriority] = useState<"urgent" | "high" | "medium" | "low">("medium");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [newTags, setNewTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [filter, setFilter] = useState<"all" | "working" | "next" | "blocked" | "completed">("all");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const fetchTodos = async () => {
@@ -116,13 +122,17 @@ export default function TodosPage() {
           title: newTodo,
           description: newDescription,
           priority: newPriority,
-          assignee: "kimi", // Always assign to Kimi
-          workStatus: "next" // Always start as "next" (yellow)
+          dueDate: newDueDate || null,
+          tags: newTags,
+          assignee: "kimi",
+          workStatus: "next"
         }),
       });
       setNewTodo("");
       setNewDescription("");
       setNewPriority("medium");
+      setNewDueDate("");
+      setNewTags([]);
       setShowAdd(false);
       fetchTodos();
     } catch (error) {
@@ -200,11 +210,28 @@ export default function TodosPage() {
     }
   };
 
-  const filteredTodos = filter === "all" 
-    ? todos.filter(t => t.status !== "completed")
-    : todos.filter(t => t.workStatus === filter && t.status !== "completed");
+  const filteredTodos = (() => {
+    let result = todos.filter(t => t.status !== "completed");
+    
+    if (filter !== "all") {
+      result = result.filter(t => t.workStatus === filter);
+    }
+    
+    if (tagFilter) {
+      result = result.filter(t => t.tags?.includes(tagFilter));
+    }
+    
+    return result;
+  })();
 
   const completedTodos = todos.filter(t => t.status === "completed");
+
+  // Get all unique tags from incomplete tasks
+  const allUniqueTags = Array.from(new Set(
+    todos
+      .filter(t => t.status !== "completed")
+      .flatMap(t => t.tags || [])
+  )).sort();
 
   const stats = {
     working: todos.filter(t => t.workStatus === "working").length,
@@ -343,6 +370,67 @@ export default function TodosPage() {
             </div>
           </div>
           
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-gray-500 mb-2 block">Due Date (optional)</label>
+              <input
+                type="date"
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-accent/30"
+              />
+            </div>
+            
+            <div>
+              <label className="text-sm text-gray-500 mb-2 block">Tags (optional)</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {newTags.map((tag) => (
+                  <span 
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-xs"
+                  >
+                    #{tag}
+                    <button 
+                      onClick={() => setNewTags(newTags.filter(t => t !== tag))}
+                      className="hover:text-white ml-1"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Add tag..."
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && tagInput.trim()) {
+                      e.preventDefault();
+                      if (!newTags.includes(tagInput.trim())) {
+                        setNewTags([...newTags, tagInput.trim()]);
+                      }
+                      setTagInput("");
+                    }
+                  }}
+                  className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-accent/30 text-sm"
+                />
+                <button
+                  onClick={() => {
+                    if (tagInput.trim() && !newTags.includes(tagInput.trim())) {
+                      setNewTags([...newTags, tagInput.trim()]);
+                      setTagInput("");
+                    }
+                  }}
+                  className="px-3 py-2 bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-xl text-sm"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+          
           <div className="flex gap-2 pt-2">
             <button 
               onClick={addTodo} 
@@ -357,6 +445,8 @@ export default function TodosPage() {
                 setNewTodo("");
                 setNewDescription("");
                 setNewPriority("medium");
+                setNewDueDate("");
+                setNewTags([]);
               }} 
               className="px-4 py-2.5 text-gray-400 hover:text-white text-sm"
             >
@@ -368,18 +458,48 @@ export default function TodosPage() {
 
       {/* Active Tasks */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-white">
             {filter === "all" ? "Active Tasks" : filter.charAt(0).toUpperCase() + filter.slice(1)}
+            {tagFilter && <span className="ml-2 text-accent">· #{tagFilter}</span>}
           </h2>
-          {filter !== "all" && (
-            <button 
-              onClick={() => setFilter("all")}
-              className="text-sm text-accent hover:text-accent/80"
-            >
-              Show all
-            </button>
-          )}
+          
+          <div className="flex items-center gap-2">
+            {/* Tag Filter */}
+            {allUniqueTags.length > 0 && (
+              <div className="flex items-center gap-1 overflow-x-auto">
+                <span className="text-xs text-gray-500 mr-1">Filter:</span>
+                {allUniqueTags.slice(0, 5).map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                    className={`px-2 py-1 rounded-lg text-xs whitespace-nowrap transition-colors ${
+                      tagFilter === tag
+                        ? "bg-accent/20 text-accent border border-accent/30"
+                        : "bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+                {allUniqueTags.length > 5 && (
+                  <span className="text-xs text-gray-500">+{allUniqueTags.length - 5}</span>
+                )}
+              </div>
+            )}
+            
+            {(filter !== "all" || tagFilter) && (
+              <button 
+                onClick={() => {
+                  setFilter("all");
+                  setTagFilter(null);
+                }}
+                className="text-sm text-accent hover:text-accent/80 whitespace-nowrap"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </div>
 
         {filteredTodos.length === 0 ? (
@@ -429,15 +549,53 @@ export default function TodosPage() {
                     <p className="text-sm text-gray-500 mb-2">{todo.description}</p>
                   )}
                   
-                  <div className="flex items-center gap-2">
+                  {/* Tags */}
+                  {todo.tags && todo.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {todo.tags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => setTagFilter(tag === tagFilter ? null : tag)}
+                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                            tagFilter === tag
+                              ? "bg-accent/20 text-accent border-accent/30"
+                              : "bg-white/[0.04] text-gray-400 border-white/[0.08] hover:bg-white/[0.08]"
+                          }`}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-3 flex-wrap">
                     <span className="flex items-center gap-1 text-xs text-accent">
                       <Bot className="w-3 h-3" />
-                      Assigned to Kimi
+                      Kimi
                     </span>
+                    
+                    {/* Due Date with Overdue Warning */}
+                    {todo.dueDate && (
+                      <span className={`flex items-center gap-1 text-xs ${
+                        new Date(todo.dueDate) < new Date() && todo.status !== "completed"
+                          ? "text-red-400 font-medium"
+                          : "text-gray-500"
+                      }`}>
+                        <Calendar className="w-3 h-3" />
+                        {new Date(todo.dueDate) < new Date() && todo.status !== "completed" ? (
+                          <>
+                            Overdue: {new Date(todo.dueDate).toLocaleDateString()}
+                          </>
+                        ) : (
+                          new Date(todo.dueDate).toLocaleDateString()
+                        )}
+                      </span>
+                    )}
+                    
                     {todo.hasAgent && (
                       <span className="flex items-center gap-1 text-xs text-green-400">
                         <Sparkles className="w-3 h-3" />
-                        Agent working
+                        Agent
                       </span>
                     )}
                   </div>

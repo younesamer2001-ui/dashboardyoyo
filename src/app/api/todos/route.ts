@@ -113,6 +113,8 @@ export async function PATCH(request: NextRequest) {
     if (priority) todo.priority = priority;
     if (assignee) todo.assignee = assignee;
     if (workStatus) todo.workStatus = workStatus;
+    if (dueDate !== undefined) todo.dueDate = dueDate;
+    if (tags) todo.tags = tags;
     
     await writeData(data);
     
