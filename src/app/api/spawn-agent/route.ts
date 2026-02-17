@@ -1,50 +1,39 @@
 import { NextRequest } from 'next/server';
-import { sessions_spawn } from '@/lib/sessions';
+import { readData, writeData } from '@/lib/storage';
 
-// POST /api/spawn-agent - Spawn a sub-agent to work on a task
+// POST /api/spawn-agent - Mark task as having an agent working on it
+// Note: Actual sub-agent spawning happens via OpenClaw sessions_spawn tool
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { taskId, taskTitle, taskDescription, priority } = body;
+    const { taskId, taskTitle, priority } = body;
     
-    if (!taskId || !taskTitle) {
-      return Response.json({ success: false, error: 'Task ID and title are required' }, { status: 400 });
+    if (!taskId) {
+      return Response.json({ success: false, error: 'Task ID is required' }, { status: 400 });
     }
 
-    // Create a detailed task prompt for the sub-agent
-    const taskPrompt = `
-You are working on a task assigned by Younes.
+    // Update task to mark as "working" with agent
+    const data = await readData();
+    const todoIndex = data.todos?.findIndex((t: any) => t.id === taskId);
+    
+    if (todoIndex === -1 || todoIndex === undefined) {
+      return Response.json({ success: false, error: 'Task not found' }, { status: 404 });
+    }
 
-TASK: ${taskTitle}
-${taskDescription ? `DESCRIPTION: ${taskDescription}` : ''}
-PRIORITY: ${priority || 'medium'}
-TASK ID: ${taskId}
+    data.todos[todoIndex].workStatus = 'working';
+    data.todos[todoIndex].hasAgent = true;
+    data.todos[todoIndex].agentStartedAt = new Date().toISOString();
+    
+    await writeData(data);
 
-Your job is to:
-1. Analyze what needs to be done
-2. Complete the task to the best of your ability
-3. Report back with:
-   - What you did
-   - What was completed
-   - Any issues or blockers (if you need help)
-   - Files changed or created
-
-Work autonomously. If you get stuck or need clarification, mark the task as "blocked" and explain what you need.
-
-Start working now:
-`;
-
-    // Spawn the sub-agent
-    const result = await sessions_spawn({
-      task: taskPrompt,
-      label: `task-${taskId}`,
-      timeoutSeconds: 300, // 5 minutes
-    });
+    // In a real implementation, this would trigger a webhook or message
+    // to spawn an actual sub-agent via OpenClaw's sessions_spawn tool
+    console.log(`[AGENT SPAWN REQUEST] Task: ${taskTitle} (ID: ${taskId}, Priority: ${priority})`);
 
     return Response.json({
       success: true,
-      message: 'Sub-agent spawned successfully',
-      sessionKey: result.sessionKey,
+      message: 'Agent marked as working on task',
+      taskId: taskId,
     });
   } catch (error) {
     console.error('Spawn agent error:', error);
