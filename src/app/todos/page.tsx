@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { 
   CheckCircle2, Circle, Plus, Trash2, Calendar, 
   User, Bot, ChevronDown, AlertCircle, Clock, 
-  Play, Pause, HelpCircle, Filter
+  Play, Pause, HelpCircle, Filter, Sparkles,
+  AlertTriangle, ArrowRight
 } from "lucide-react";
 
 interface Todo {
@@ -16,6 +17,7 @@ interface Todo {
   assignee: "user" | "kimi";
   workStatus: "pending" | "working" | "next" | "blocked" | "completed";
   createdAt: string;
+  hasAgent?: boolean;
 }
 
 const workStatusConfig = {
@@ -61,13 +63,21 @@ const workStatusConfig = {
   },
 };
 
+const priorityConfig = {
+  urgent: { color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", label: "Urgent" },
+  high: { color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "High" },
+  medium: { color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "Medium" },
+  low: { color: "text-gray-400", bg: "bg-gray-500/10", border: "border-gray-500/20", label: "Low" },
+};
+
 export default function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTodo, setNewTodo] = useState("");
-  const [newAssignee, setNewAssignee] = useState<"kimi" | "user">("kimi");
+  const [newDescription, setNewDescription] = useState("");
+  const [newPriority, setNewPriority] = useState<"urgent" | "high" | "medium" | "low">("medium");
   const [showAdd, setShowAdd] = useState(false);
-  const [filter, setFilter] = useState<"all" | "kimi" | "user">("all");
+  const [filter, setFilter] = useState<"all" | "working" | "next" | "blocked" | "completed">("all");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const fetchTodos = async () => {
@@ -88,7 +98,6 @@ export default function TodosPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = () => setOpenDropdown(null);
     if (openDropdown) {
@@ -104,17 +113,50 @@ export default function TodosPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          title: newTodo, 
-          priority: "medium",
-          assignee: newAssignee,
-          workStatus: "pending"
+          title: newTodo,
+          description: newDescription,
+          priority: newPriority,
+          assignee: "kimi", // Always assign to Kimi
+          workStatus: "next" // Always start as "next" (yellow)
         }),
       });
       setNewTodo("");
+      setNewDescription("");
+      setNewPriority("medium");
       setShowAdd(false);
       fetchTodos();
     } catch (error) {
       console.error("Failed to add todo:", error);
+    }
+  };
+
+  const spawnAgent = async (todo: Todo) => {
+    try {
+      // First update status to working
+      await fetch("/api/todos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          id: todo.id, 
+          workStatus: "working",
+        }),
+      });
+      
+      // Then spawn the sub-agent
+      await fetch("/api/spawn-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: todo.id,
+          taskTitle: todo.title,
+          taskDescription: todo.description,
+          priority: todo.priority,
+        }),
+      });
+      
+      fetchTodos();
+    } catch (error) {
+      console.error("Failed to spawn agent:", error);
     }
   };
 
@@ -140,7 +182,7 @@ export default function TodosPage() {
         body: JSON.stringify({ 
           id, 
           status: newStatus,
-          workStatus: newStatus === "completed" ? "completed" : "pending"
+          workStatus: newStatus === "completed" ? "completed" : "next"
         }),
       });
       fetchTodos();
@@ -159,12 +201,17 @@ export default function TodosPage() {
   };
 
   const filteredTodos = filter === "all" 
-    ? todos 
-    : todos.filter(t => t.assignee === filter);
+    ? todos.filter(t => t.status !== "completed")
+    : todos.filter(t => t.workStatus === filter && t.status !== "completed");
 
-  const kimisWorking = todos.filter(t => t.assignee === "kimi" && t.workStatus === "working");
-  const kimisNext = todos.filter(t => t.assignee === "kimi" && t.workStatus === "next");
-  const kimisBlocked = todos.filter(t => t.assignee === "kimi" && t.workStatus === "blocked");
+  const completedTodos = todos.filter(t => t.status === "completed");
+
+  const stats = {
+    working: todos.filter(t => t.workStatus === "working").length,
+    next: todos.filter(t => t.workStatus === "next").length,
+    blocked: todos.filter(t => t.workStatus === "blocked").length,
+    completed: completedTodos.length,
+  };
 
   if (loading) {
     return (
@@ -175,17 +222,17 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="pt-16 lg:pt-0 max-w-4xl mx-auto p-4 space-y-6">
+    <div className="pt-16 lg:pt-0 max-w-4xl mx-auto p-4 space-y-6 pb-24">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <CheckCircle2 className="h-6 w-6 text-accent" />
-            Tasks
+            Kimi&apos;s Tasks
           </h1>
           <p className="text-gray-400 text-sm mt-1">
-            {todos.filter(t => t.status === "pending").length} pending · {kimisWorking.length} in progress
+            Everything starts as "Next" → moves to "Working" or "Blocked"
           </p>
         </div>
         
@@ -193,128 +240,125 @@ export default function TodosPage() {
           onClick={() => setShowAdd(!showAdd)}
           className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl font-medium transition-colors"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 h-4" />
           Add Task
         </button>
       </div>
 
-      {/* Kimi's Status Overview */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="p-4 rounded-2xl bg-green-500/5 border border-green-500/10">
+      {/* Status Overview */}
+      <div className="grid grid-cols-4 gap-3">
+        <button 
+          onClick={() => setFilter("working")}
+          className={`p-4 rounded-2xl border transition-all ${filter === "working" ? "bg-green-500/10 border-green-500/30" : "bg-green-500/5 border-green-500/10"}`}
+        >
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs font-medium text-green-400">Working Now</span>
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs font-medium text-green-400">Working</span>
           </div>
-          <p className="text-2xl font-bold text-white">{kimisWorking.length}</p>
-        </div>
+          <p className="text-2xl font-bold text-white">{stats.working}</p>
+        </button>
         
-        <div className="p-4 rounded-2xl bg-yellow-500/5 border border-yellow-500/10">
+        <button 
+          onClick={() => setFilter("next")}
+          className={`p-4 rounded-2xl border transition-all ${filter === "next" ? "bg-yellow-500/10 border-yellow-500/30" : "bg-yellow-500/5 border-yellow-500/10"}`}
+        >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2 h-2 rounded-full bg-yellow-500" />
-            <span className="text-xs font-medium text-yellow-400">Up Next</span>
+            <span className="text-xs font-medium text-yellow-400">Next</span>
           </div>
-          <p className="text-2xl font-bold text-white">{kimisNext.length}</p>
-        </div>
+          <p className="text-2xl font-bold text-white">{stats.next}</p>
+        </button>
         
-        <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
+        <button 
+          onClick={() => setFilter("blocked")}
+          className={`p-4 rounded-2xl border transition-all ${filter === "blocked" ? "bg-red-500/10 border-red-500/30" : "bg-red-500/5 border-red-500/10"}`}
+        >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-xs font-medium text-red-400">Need Help</span>
+            <span className="text-xs font-medium text-red-400">Blocked</span>
           </div>
-          <p className="text-2xl font-bold text-white">{kimisBlocked.length}</p>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setFilter("all")}
-          className={filter === "all" 
-            ? "px-4 py-2 rounded-xl text-sm font-medium bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          All Tasks
+          <p className="text-2xl font-bold text-white">{stats.blocked}</p>
         </button>
-        <button
-          onClick={() => setFilter("kimi")}
-          className={filter === "kimi"
-            ? "px-4 py-2 rounded-xl text-sm font-medium bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
+        
+        <button 
+          onClick={() => setFilter("completed")}
+          className={`p-4 rounded-2xl border transition-all ${filter === "completed" ? "bg-blue-500/10 border-blue-500/30" : "bg-blue-500/5 border-blue-500/10"}`}
         >
-          <div className="flex items-center gap-2">
-            <Bot className="w-4 h-4" />
-            Kimi&apos;s Tasks
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="text-xs font-medium text-blue-400">Done</span>
           </div>
-        </button>
-        <button
-          onClick={() => setFilter("user")}
-          className={filter === "user"
-            ? "px-4 py-2 rounded-xl text-sm font-medium bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            Your Tasks
-          </div>
+          <p className="text-2xl font-bold text-white">{stats.completed}</p>
         </button>
       </div>
 
       {/* Add Task Form */}
       {showAdd && (
-        <div className="p-4 bg-white/[0.02] border border-white/[0.06] rounded-2xl space-y-3">
-          <input
-            type="text"
-            placeholder="What needs to be done?"
-            value={newTodo}
-            onChange={(e) => setNewTodo(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTodo()}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent/30"
-            autoFocus
-          />
+        <div className="p-5 bg-white/[0.02] border border-white/[0.06] rounded-2xl space-y-4">
+          <div>
+            <label className="text-sm text-gray-500 mb-2 block">Task Title</label>
+            <input
+              type="text"
+              placeholder="What should Kimi do?"
+              value={newTodo}
+              onChange={(e) => setNewTodo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && addTodo()}
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent/30"
+              autoFocus
+            />
+          </div>
           
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">Assign to:</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setNewAssignee("kimi")}
-                className={newAssignee === "kimi"
-                  ? "px-3 py-1.5 rounded-lg bg-accent/20 text-accent border border-accent/30 text-sm"
-                  : "px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] text-sm hover:bg-white/[0.06]"
-                }
-              >
-                <div className="flex items-center gap-1.5">
-                  <Bot className="w-3.5 h-3.5" />
-                  Kimi
-                </div>
-              </button>
-              <button
-                onClick={() => setNewAssignee("user")}
-                className={newAssignee === "user"
-                  ? "px-3 py-1.5 rounded-lg bg-accent/20 text-accent border border-accent/30 text-sm"
-                  : "px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] text-sm hover:bg-white/[0.06]"
-                }
-              >
-                <div className="flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5" />
-                  You
-                </div>
-              </button>
+          <div>
+            <label className="text-sm text-gray-500 mb-2 block">Description (optional)</label>
+            <textarea
+              placeholder="Add more details..."
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              rows={2}
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent/30 resize-none"
+            />
+          </div>
+          
+          <div>
+            <label className="text-sm text-gray-500 mb-2 block">Priority</label>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key: "urgent", label: "🔴 Urgent", desc: "Fix immediately" },
+                { key: "high", label: "🟠 High", desc: "Do today" },
+                { key: "medium", label: "🟡 Medium", desc: "Do this week" },
+                { key: "low", label: "⚪ Low", desc: "When possible" },
+              ].map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setNewPriority(p.key as any)}
+                  className={newPriority === p.key
+                    ? "px-4 py-2 rounded-xl bg-accent/20 text-accent border border-accent/30 text-sm text-left"
+                    : "px-4 py-2 rounded-xl bg-white/[0.04] text-gray-400 border border-white/[0.08] text-sm hover:bg-white/[0.06] text-left"
+                  }
+                >
+                  <span className="font-medium">{p.label}</span>
+                  <span className="block text-xs opacity-70 mt-0.5">{p.desc}</span>
+                </button>
+              ))}
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-2">
             <button 
               onClick={addTodo} 
-              className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-sm font-medium"
+              className="px-6 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl text-sm font-medium flex items-center gap-2"
             >
-              Add Task
+              <Sparkles className="w-4 h-4" />
+              Assign to Kimi
             </button>
             <button 
-              onClick={() => setShowAdd(false)} 
-              className="px-4 py-2 text-gray-400 hover:text-white text-sm"
+              onClick={() => {
+                setShowAdd(false);
+                setNewTodo("");
+                setNewDescription("");
+                setNewPriority("medium");
+              }} 
+              className="px-4 py-2.5 text-gray-400 hover:text-white text-sm"
             >
               Cancel
             </button>
@@ -322,119 +366,189 @@ export default function TodosPage() {
         </div>
       )}
 
-      {/* Tasks List */}
+      {/* Active Tasks */}
       <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">
+            {filter === "all" ? "Active Tasks" : filter.charAt(0).toUpperCase() + filter.slice(1)}
+          </h2>
+          {filter !== "all" && (
+            <button 
+              onClick={() => setFilter("all")}
+              className="text-sm text-accent hover:text-accent/80"
+            >
+              Show all
+            </button>
+          )}
+        </div>
+
         {filteredTodos.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12 bg-white/[0.02] rounded-2xl border border-white/[0.06]">
             <div className="w-16 h-16 rounded-2xl bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-gray-600" />
+              {filter === "blocked" ? (
+                <AlertCircle className="w-8 h-8 text-red-400" />
+              ) : filter === "working" ? (
+                <Play className="w-8 h-8 text-green-400" />
+              ) : (
+                <Clock className="w-8 h-8 text-yellow-400" />
+              )}
             </div>
-            <p className="text-gray-500">No tasks yet. Add one above!</p>
+            <p className="text-gray-500">
+              {filter === "all" ? "No active tasks. Add one above!" : `No ${filter} tasks.`}
+            </p>
           </div>
         ) : (
           filteredTodos.map((todo) => {
-            const config = workStatusConfig[todo.workStatus] || workStatusConfig.pending;
+            const config = workStatusConfig[todo.workStatus] || workStatusConfig.next;
             const StatusIcon = config.icon;
+            const prio = priorityConfig[todo.priority];
             
             return (
               <div
                 key={todo.id}
-                className={`group flex items-center gap-3 p-4 rounded-2xl border transition-all ${
-                  todo.status === "completed"
-                    ? "bg-white/[0.02] border-white/[0.04] opacity-60"
-                    : "bg-white/[0.03] border-white/[0.06] hover:border-white/[0.1]"
-                }`}
+                className="group flex items-start gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.1] transition-all"
               >
                 {/* Complete Toggle */}
                 <button 
                   onClick={() => toggleComplete(todo.id, todo.status)}
-                  className="flex-shrink-0"
+                  className="flex-shrink-0 mt-0.5"
                 >
-                  {todo.status === "completed" ? (
-                    <CheckCircle2 className="h-6 w-6 text-green-500" />
-                  ) : (
-                    <Circle className="h-6 w-6 text-gray-500 hover:text-accent transition-colors" />
-                  )}
+                  <Circle className="h-5 w-5 text-gray-500 hover:text-accent transition-colors" />
                 </button>
                 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className={`font-medium truncate ${
-                    todo.status === "completed" ? "line-through text-gray-500" : "text-white"
-                  }`}>
-                    {todo.title}
-                  </p>                  
-                  <div className="flex items-center gap-2 mt-1">
-                    {todo.assignee === "kimi" ? (
-                      <span className="flex items-center gap-1 text-xs text-accent">
-                        <Bot className="w-3 h-3" />
-                        Kimi
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-xs text-gray-500">
-                        <User className="w-3 h-3" />
-                        You
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-white truncate">{todo.title}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${prio.bg} ${prio.color} ${prio.border}`}>
+                      {prio.label}
+                    </span>
+                  </div>
+                  
+                  {todo.description && (
+                    <p className="text-sm text-gray-500 mb-2">{todo.description}</p>
+                  )}
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs text-accent">
+                      <Bot className="w-3 h-3" />
+                      Assigned to Kimi
+                    </span>
+                    {todo.hasAgent && (
+                      <span className="flex items-center gap-1 text-xs text-green-400">
+                        <Sparkles className="w-3 h-3" />
+                        Agent working
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Status Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenDropdown(openDropdown === todo.id ? null : todo.id);
-                    }}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border ${config.bgColor} ${config.textColor} ${config.borderColor} hover:opacity-80 transition-opacity`}
-                  >
-                    <StatusIcon className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">{config.label}</span>
-                    <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === todo.id ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {/* Dropdown Menu */}
-                  {openDropdown === todo.id && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-bg-card border border-white/[0.08] rounded-xl shadow-xl z-50 py-1">
-                      {Object.entries(workStatusConfig).map(([key, conf]) => {
-                        if (key === "completed") return null;
-                        const Icon = conf.icon;
-                        return (
-                          <button
-                            key={key}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateWorkStatus(todo.id, key);
-                              setOpenDropdown(null);
-                            }}
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-white/[0.04] transition-colors ${
-                              todo.workStatus === key ? 'bg-white/[0.04]' : ''
-                            }`}
-                          >
-                            <Icon className={`w-4 h-4 ${conf.textColor}`} />
-                            <span className="text-gray-300">{conf.label}</span>
-                            {todo.workStatus === key && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-accent ml-auto" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  {/* Spawn Agent Button */}
+                  {todo.workStatus === "next" && (
+                    <button
+                      onClick={() => spawnAgent(todo)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium transition-colors"
+                      title="Spawn sub-agent to work on this"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Start
+                    </button>
                   )}
-                </div>
 
-                {/* Delete */}
-                <button 
-                  onClick={() => deleteTodo(todo.id)} 
-                  className="opacity-0 group-hover:opacity-100 p-2 text-gray-500 hover:text-red-400 transition-all"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  {/* Status Dropdown */}
+                  <div className="relative"
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenDropdown(openDropdown === todo.id ? null : todo.id);
+                      }}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border ${config.bgColor} ${config.textColor} ${config.borderColor} hover:opacity-80 transition-opacity`}
+                    >
+                      <StatusIcon className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{config.label}</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === todo.id ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {openDropdown === todo.id && (
+                      <div className="absolute right-0 top-full mt-1 w-52 bg-bg-card border border-white/[0.08] rounded-xl shadow-xl z-50 py-1"
+                      >
+                        {Object.entries(workStatusConfig).map(([key, conf]) => {
+                          if (key === "completed" || key === "pending") return null;
+                          const Icon = conf.icon;
+                          return (
+                            <button
+                              key={key}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateWorkStatus(todo.id, key);
+                                setOpenDropdown(null);
+                              }}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-white/[0.04] transition-colors ${
+                                todo.workStatus === key ? 'bg-white/[0.04]' : ''
+                              }`}
+                            >
+                              <Icon className={`w-4 h-4 ${conf.textColor}`} />
+                              <div>
+                                <p className="text-gray-200">{conf.label}</p>
+                                <p className="text-[10px] text-gray-500">
+                                  {key === "working" && "Kimi is actively working on this"}
+                                  {key === "next" && "Waiting to be worked on"}
+                                  {key === "blocked" && "Need your input to continue"}
+                                </p>
+                              </div>
+                              {todo.workStatus === key && (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-accent ml-auto" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete */}
+                  <button 
+                    onClick={() => deleteTodo(todo.id)} 
+                    className="opacity-0 group-hover:opacity-100 p-2 text-gray-500 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Completed Tasks */}
+      {completedTodos.length > 0 && filter === "all" && (
+        <div className="space-y-3 pt-4 border-t border-white/[0.06]">
+          <h2 className="text-sm font-medium text-gray-500 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            Completed ({completedTodos.length})
+          </h2>
+          
+          <div className="space-y-2 opacity-60">
+            {completedTodos.slice(0, 3).map((todo) => (
+              <div
+                key={todo.id}
+                className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]"
+              >
+                <button onClick={() => toggleComplete(todo.id, todo.status)}>
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                </button>
+                <p className="flex-1 text-gray-400 line-through">{todo.title}</p>
+              </div>
+            ))}
+            {completedTodos.length > 3 && (
+              <p className="text-sm text-gray-500 pl-2">+{completedTodos.length - 3} more</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

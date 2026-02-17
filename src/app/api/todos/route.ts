@@ -67,8 +67,8 @@ export async function POST(request: NextRequest) {
       priority,
       dueDate: dueDate || null,
       tags,
-      assignee, // 'kimi' or 'user'
-      workStatus, // 'pending', 'working', 'next', 'blocked', 'completed'
+      assignee: assignee || 'kimi', // Default to Kimi
+      workStatus: 'next', // DEFAULT: Start as "next" (yellow)
       createdAt: new Date().toISOString(),
       completedAt: null,
       createdBy: 'user',
