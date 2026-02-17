@@ -14,18 +14,21 @@ import {
     BarChart3,
     Menu,
     X,
+    FolderKanban,
+    CheckCircle,
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, LucideIcon> = {
     LayoutDashboard, Users, Brain, Activity, MessageSquare,
-    Zap, FileText, BarChart3,
+    Zap, FileText, BarChart3, FolderKanban, CheckCircle,
 };
 
 const fallbackNavItems = [
   { href: "/", label: "Overview", icon: "LayoutDashboard" },
   { href: "/todos", label: "Tasks", icon: "CheckCircle" },
+  { href: "/projects", label: "Projects", icon: "FolderKanban" },
   { href: "/agents", label: "Agents", icon: "Users" },
   { href: "/brain", label: "Brain", icon: "Brain" },
   { href: "/feed", label: "Feed", icon: "Activity" },
