@@ -227,7 +227,7 @@ export default function TeamChatPage() {
         });
 
         // Add all messages to active team
-        setTeams((prev) =
+        setTeams((prev) =>
           prev.map((team) =>
             team.id === activeTeamId
               ? { ...team, messages: [...team.messages, ...newMessages] }
@@ -247,7 +247,7 @@ export default function TeamChatPage() {
         type: "ceo-summary",
       };
 
-      setTeams((prev) =
+      setTeams((prev) =>
         prev.map((team) =>
           team.id === activeTeamId
             ? { ...team, messages: [...team.messages, errorMessage] }
