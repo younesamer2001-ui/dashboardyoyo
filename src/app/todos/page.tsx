@@ -340,42 +340,67 @@ export default function TodosPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Notification Bell */}
+          {/* Notification Bell - Improved */}
           <div className="relative">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowNotifications(!showNotifications);
+              }}
+              className={`relative p-3 rounded-xl border transition-all duration-200 ${
+                showNotifications 
+                  ? "bg-accent/20 border-accent/40 text-accent" 
+                  : "bg-white/[0.06] border-white/[0.12] hover:bg-white/[0.1] hover:border-white/[0.2] text-gray-300"
+              }`}
             >
-              <Bell className="h-5 w-5 text-gray-400" />
+              <Bell className={`h-5 w-5 ${unreadCount > 0 ? 'text-accent' : ''}`} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-[#0a0a0a] animate-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
             
-            {/* Notifications Dropdown */}
+            {/* Backdrop */}
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-bg-card border border-white/[0.08] rounded-2xl shadow-xl z-50 overflow-hidden">
-                <div className="p-3 border-b border-white/[0.06] flex items-center justify-between">
-                  <span className="font-medium text-white">Notifications</span>
+              <div 
+                className="fixed inset-0 z-40"
+                onClick={() => setShowNotifications(false)}
+              />
+            )}
+            
+            {/* Notifications Dropdown - Improved */}
+            {showNotifications && (
+              <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 bg-[#111118] border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/50 z-50 overflow-hidden">
+                <div className="p-4 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-accent" />
+                    <span className="font-semibold text-white">Notifications</span>
+                  </div>
                   {unreadCount > 0 && (
-                    <span className="text-xs text-accent">{unreadCount} new</span>
+                    <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs font-medium">
+                      {unreadCount} new
+                    </span>
                   )}
                 </div>
                 
-                <div className="max-h-64 overflow-y-auto">
+                <div className="max-h-80 overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <p className="p-4 text-center text-gray-500 text-sm">No notifications</p>
+                    <div className="p-8 text-center">
+                      <div className="w-12 h-12 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
+                        <Bell className="w-6 h-6 text-gray-600" />
+                      </div>
+                      <p className="text-gray-500 text-sm">No notifications yet</p>
+                      <p className="text-gray-600 text-xs mt-1">You&apos;ll get notified when tasks are blocked</p>
+                    </div>
                   ) : (
                     notifications.map((notif) => (
                       <div
                         key={notif.id}
-                        className={`p-3 border-b border-white/[0.04] hover:bg-white/[0.02] cursor-pointer ${
-                          notif.type === 'blocked_task' ? 'border-l-2 border-l-red-500' : ''
+                        className={`p-4 border-b border-white/[0.04] hover:bg-white/[0.04] cursor-pointer transition-colors ${
+                          notif.type === 'blocked_task' ? 'border-l-[3px] border-l-red-500 bg-red-500/[0.02]' : ''
                         }`}
                         onClick={() => {
-                          // Mark as read and filter to that task
                           fetch('/api/notify', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
@@ -383,13 +408,26 @@ export default function TodosPage() {
                           });
                           setShowNotifications(false);
                           fetchNotifications();
+                          // Filter to blocked tasks
+                          if (notif.type === 'blocked_task') {
+                            setFilter('blocked');
+                          }
                         }}
                       >
-                        <p className="font-medium text-sm text-white">{notif.title}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{notif.message}</p>
-                        <p className="text-[10px] text-gray-600 mt-1">
-                          {new Date(notif.createdAt).toLocaleTimeString()}
-                        </p>
+                        <div className="flex items-start gap-3">
+                          {notif.type === 'blocked_task' && (
+                            <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                              <AlertCircle className="w-4 h-4 text-red-400" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-white truncate">{notif.title}</p>
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-2">{notif.message}</p>
+                            <p className="text-[10px] text-gray-600 mt-2">
+                              {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
