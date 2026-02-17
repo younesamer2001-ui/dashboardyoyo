@@ -56,9 +56,9 @@ function getDateLabel(timestamp: string): string {
 }
 
 /* ─── Markdown Renderer ─── */
-function renderMarkdown(text: string) {
+function renderMarkdown(text: string): React.ReactElement[] {
   const lines = text.split("\n");
-  const elements: JSX.Element[] = [];
+  const elements: React.ReactElement[] = [];
   let inCodeBlock = false;
   let codeBuffer: string[] = [];
   let codeLang = "";
@@ -173,8 +173,8 @@ function renderMarkdown(text: string) {
   return elements;
 }
 
-function renderInline(text: string): (string | JSX.Element)[] {
-  const parts: (string | JSX.Element)[] = [];
+function renderInline(text: string): (string | React.ReactElement)[] {
+  const parts: (string | React.ReactElement)[] = [];
   // Process inline markdown: **bold**, *italic*, `code`, [link](url)
   const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
   let lastIndex = 0;
