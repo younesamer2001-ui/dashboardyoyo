@@ -1,5 +1,23 @@
 import { NextRequest } from 'next/server';
 
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+const GITHUB_API_BASE = 'https://api.github.com';
+
+// Helper to fetch from GitHub API
+async function fetchGitHub(endpoint: string) {
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+  };
+  
+  if (GITHUB_TOKEN) {
+    headers['Authorization'] = `token ${GITHUB_TOKEN}`;
+  }
+  
+  const res = await fetch(`${GITHUB_API_BASE}${endpoint}`, { headers });
+  if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+  return res.json();
+}
+
 interface GitHubRepo {
   id: number;
   name: string;
@@ -29,31 +47,7 @@ interface GitHubCommit {
   };
 }
 
-interface GitHubPR {
-  number: number;
-  title: string;
-  state: string;
-  html_url: string;
-  created_at: string;
-  user: {
-    login: string;
-    avatar_url: string;
-  };
-}
-
-interface GitHubIssue {
-  number: number;
-  title: string;
-  state: string;
-  html_url: string;
-  created_at: string;
-  labels: Array<{
-    name: string;
-    color: string;
-  }>;
-}
-
-// Mock data for demo (until GitHub token is added)
+// Mock data fallback
 const mockRepos = [
   {
     id: 1,
@@ -67,30 +61,6 @@ const mockRepos = [
     language: "TypeScript",
     default_branch: "main"
   },
-  {
-    id: 2,
-    name: "siha-shopify",
-    full_name: "younesamer2001-ui/siha-shopify",
-    description: "E-commerce platform for Siha",
-    html_url: "https://github.com/younesamer2001-ui/siha-shopify",
-    stargazers_count: 3,
-    updated_at: new Date(Date.now() - 86400000).toISOString(),
-    pushed_at: new Date(Date.now() - 86400000).toISOString(),
-    language: "Liquid",
-    default_branch: "main"
-  },
-  {
-    id: 3,
-    name: "x-agent",
-    full_name: "younesamer2001-ui/x-agent",
-    description: "Automated X/Twitter posting system",
-    html_url: "https://github.com/younesamer2001-ui/x-agent",
-    stargazers_count: 8,
-    updated_at: new Date(Date.now() - 172800000).toISOString(),
-    pushed_at: new Date(Date.now() - 172800000).toISOString(),
-    language: "JavaScript",
-    default_branch: "main"
-  }
 ];
 
 const mockCommits: Record<string, GitHubCommit[]> = {
@@ -102,40 +72,8 @@ const mockCommits: Record<string, GitHubCommit[]> = {
         author: { name: "Younes", date: new Date().toISOString() }
       },
       html_url: "https://github.com/younesamer2001-ui/dashboardyoyo/commit/abc123",
-      author: { login: "younesamer2001-ui", avatar_url: "" }
-    },
-    {
-      sha: "def456",
-      commit: {
-        message: "Redesign to Linear-style theme",
-        author: { name: "Younes", date: new Date(Date.now() - 3600000).toISOString() }
-      },
-      html_url: "https://github.com/younesamer2001-ui/dashboardyoyo/commit/def456",
-      author: { login: "younesamer2001-ui", avatar_url: "" }
     }
   ],
-  "siha-shopify": [
-    {
-      sha: "ghi789",
-      commit: {
-        message: "Update product page layout",
-        author: { name: "Younes", date: new Date(Date.now() - 86400000).toISOString() }
-      },
-      html_url: "https://github.com/younesamer2001-ui/siha-shopify/commit/ghi789",
-      author: { login: "younesamer2001-ui", avatar_url: "" }
-    }
-  ],
-  "x-agent": [
-    {
-      sha: "jkl012",
-      commit: {
-        message: "Fix API rate limiting",
-        author: { name: "Younes", date: new Date(Date.now() - 172800000).toISOString() }
-      },
-      html_url: "https://github.com/younesamer2001-ui/x-agent/commit/jkl012",
-      author: { login: "younesamer2001-ui", avatar_url: "" }
-    }
-  ]
 };
 
 // GET /api/github/repos - Get user's repos
@@ -144,9 +82,31 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const owner = searchParams.get('owner') || 'younesamer2001-ui';
     
-    // In production, this would call GitHub API with token
-    // For now, return mock data
+    // If token exists, fetch from real GitHub API
+    if (GITHUB_TOKEN) {
+      try {
+        const repos = await fetchGitHub(`/users/${owner}/repos?sort=updated&per_page=10`);
+        return Response.json({
+          success: true,
+          repos: repos.map((repo: any) => ({
+            id: repo.id,
+            name: repo.name,
+            full_name: repo.full_name,
+            description: repo.description,
+            html_url: repo.html_url,
+            stargazers_count: repo.stargazers_count,
+            updated_at: repo.updated_at,
+            pushed_at: repo.pushed_at,
+            language: repo.language,
+            default_branch: repo.default_branch,
+          })),
+        });
+      } catch (apiError) {
+        console.error('GitHub API error, falling back to mock:', apiError);
+      }
+    }
     
+    // Fallback to mock data
     return Response.json({
       success: true,
       repos: mockRepos,
@@ -157,24 +117,72 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// GET commits for a repo
+// POST - Get commits or stats for a repo
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { repo, type } = body;
+    const { repo, type, owner = 'younesamer2001-ui' } = body;
     
     if (type === 'commits') {
+      // If token exists, fetch real commits
+      if (GITHUB_TOKEN) {
+        try {
+          const commits = await fetchGitHub(`/repos/${owner}/${repo}/commits?per_page=10`);
+          return Response.json({ 
+            success: true, 
+            commits: commits.map((c: any) => ({
+              sha: c.sha,
+              commit: {
+                message: c.commit.message,
+                author: {
+                  name: c.commit.author.name,
+                  date: c.commit.author.date,
+                },
+              },
+              html_url: c.html_url,
+              author: c.author ? {
+                login: c.author.login,
+                avatar_url: c.author.avatar_url,
+              } : undefined,
+            }))
+          });
+        } catch (apiError) {
+          console.error('GitHub commits API error:', apiError);
+        }
+      }
+      
       const commits = mockCommits[repo] || [];
       return Response.json({ success: true, commits });
     }
     
     if (type === 'stats') {
+      // If token exists, fetch real stats
+      if (GITHUB_TOKEN) {
+        try {
+          const commits = await fetchGitHub(`/repos/${owner}/${repo}/commits?per_page=100`);
+          const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          
+          return Response.json({
+            success: true,
+            stats: {
+              totalCommits: commits.length,
+              thisWeek: commits.filter((c: any) => 
+                new Date(c.commit.author.date) > oneWeekAgo
+              ).length,
+              lastPush: commits[0]?.commit.author.date || null,
+            }
+          });
+        } catch (apiError) {
+          console.error('GitHub stats API error:', apiError);
+        }
+      }
+      
       const commits = mockCommits[repo] || [];
       return Response.json({
         success: true,
         stats: {
-          totalCommits: commits.length + Math.floor(Math.random() * 50),
-          thisWeek: commits.filter(c => 
+          totalCommits: commits.length,
+          thisWeek: commits.filter((c: any) => 
             new Date(c.commit.author.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
           ).length,
           lastPush: commits[0]?.commit.author.date || null,
