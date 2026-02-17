@@ -454,7 +454,7 @@ export default function ExpertReviewTeam() {
               onClick={() => setSelectedExpert(selectedExpert === expert.id ? null : expert.id)}
               className={`p-4 rounded-xl border text-left transition-all ${
                 selectedExpert === expert.id
-                  ? `${expert.bgColor} border-${expert.color.split('-')[1]}-500/30`
+                  ? `${expert.bgColor} border-white/[0.1]`
                   : "bg-[#13131f] border-white/[0.06] hover:border-white/[0.1]"
               }`}
             >
