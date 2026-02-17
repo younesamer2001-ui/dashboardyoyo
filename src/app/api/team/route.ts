@@ -202,7 +202,7 @@ function determineRelevantAgents(message: string, availableAgents?: string[]): s
   
   // If no specific domain found, include all available specialists
   if (agents.length === 1) { // Only CEO
-    const fallback = ['marketing', 'developer', 'designer'];
+    const fallback: string[] = ['marketing', 'developer', 'designer'];
     if (availableAgents) {
       return ['ceo', ...fallback.filter(id => availableAgents.includes(id))];
     }
