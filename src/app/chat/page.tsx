@@ -5,7 +5,7 @@ import {
   MessageSquare, Send, Bot, User, Plus, Paperclip, Upload, X,
   FileText, Image, File, Search, ArrowDown, Copy, Check,
   Mic, MicOff, Sparkles, Zap, ChevronDown, Clock, Hash,
-  Code, Link2, Bold, Italic, List
+  Code, Link2, Bold, Italic, List, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/utils";
@@ -613,42 +613,63 @@ export default function ChatPage() {
   const dateSepIndices = getDateSeparators();
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
-      {/* ─── Header ─── */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent/30 to-purple-500/20 flex items-center justify-center border border-accent/20">
-              <Sparkles className="h-5 w-5 text-accent" />
+    <div className="pt-16 lg:pt-0 max-w-4xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
+      {/* ─── Professional Header ─── */}
+      <div className="mb-4 flex items-center justify-between bg-gradient-to-r from-bg-card to-transparent p-4 rounded-2xl border border-white/[0.06]">
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-accent/30 to-purple-500/20 flex items-center justify-center border border-accent/20 shadow-lg shadow-accent/10 transition-transform group-hover:scale-105">
+              <Sparkles className="h-6 w-6 text-accent" />
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#0f0f1a]" />
+            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-[#0f0f1a] flex items-center justify-center">
+              <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+            </div>
           </div>
+          
           <div>
             <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
               Chat with Kimi
-              <span className="text-[10px] font-medium bg-accent/20 text-accent px-1.5 py-0.5 rounded-full">AI CEO</span>
+              <span className="text-[10px] font-medium bg-accent/20 text-accent px-2 py-0.5 rounded-full border border-accent/20">AI CEO</span>
             </h1>
-            <p className="text-xs text-gray-500">Your AI partner &bull; Powered by Kimi K2</p>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Online now
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="text-xs text-gray-500">
+                {messages.length} messages
+              </span>
+            </div>
           </div>
         </div>
+        
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setShowSearch(!showSearch); setTimeout(() => searchRef.current?.focus(), 100); }}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-all border",
+              "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-all border",
               showSearch
                 ? "bg-accent/10 border-accent/30 text-accent"
                 : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20"
             )}
           >
-            <Search className="h-3.5 w-3.5" />
+            <Search className="h-4 w-4" />
             <span className="hidden sm:inline">Search</span>
-            <kbd className="hidden sm:inline text-[9px] bg-white/10 px-1 rounded">⌘K</kbd>
+            <kbd className="hidden md:inline text-[10px] bg-white/10 px-1.5 py-0.5 rounded ml-1">⌘K</kbd>
           </button>
-          <div className="flex items-center gap-1.5 text-xs bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-green-400">Online</span>
-          </div>
+          
+          <button
+            onClick={() => {
+              if (confirm('Clear all messages? This cannot be undone.')) {
+                setMessages([]);
+              }
+            }}
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-all"
+            title="Clear chat"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -692,37 +713,48 @@ export default function ChatPage() {
         className="flex-1 overflow-y-auto rounded-2xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent p-4 space-y-1 scroll-smooth"
         style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}
       >
-        {/* Empty State */}
+        {/* Empty State - Professional */}
         {filteredMessages.length === 0 && !searchQuery && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400">
-            <div className="relative mb-6">
-              <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-accent/20 to-purple-500/10 flex items-center justify-center border border-white/10">
-                <Sparkles className="h-10 w-10 text-accent/40" />
+          <div className="flex flex-col items-center justify-center h-full px-4">
+            <div className="relative mb-8">
+              <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-accent/20 via-purple-500/10 to-transparent flex items-center justify-center border border-white/10 shadow-xl shadow-accent/5">
+                <Sparkles className="h-12 w-12 text-accent/60" />
               </div>
-              <div className="absolute -top-2 -right-2 h-8 w-8 rounded-xl bg-yellow-500/20 flex items-center justify-center border border-yellow-500/20 rotate-12">
-                <Zap className="h-4 w-4 text-yellow-400/60" />
+              <div className="absolute -bottom-2 -right-2 h-10 w-10 rounded-2xl bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
               </div>
             </div>
-            <h3 className="text-lg font-semibold text-white/80 mb-1">Hey Younes!</h3>
-            <p className="text-sm text-gray-500 mb-6 text-center max-w-sm">
-              I&apos;m Kimi, your AI CEO. Ask me anything — manage agents, track scouts, remember things, or just chat.
-            </p>
-            <div className="grid grid-cols-2 gap-2 max-w-md">
-              {[
-                { icon: "🤖", text: "Create an agent" },
-                { icon: "📊", text: "Dashboard status" },
-                { icon: "🧠", text: "What do you remember?" },
-                { icon: "🔍", text: "Monitor a website" },
-              ].map((suggestion) => (
-                <button
-                  key={suggestion.text}
-                  onClick={() => { setInput(suggestion.text); inputRef.current?.focus(); }}
-                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-gray-300 hover:bg-white/10 hover:border-accent/20 hover:text-white transition-all group"
-                >
-                  <span>{suggestion.icon}</span>
-                  <span className="group-hover:text-accent transition-colors">{suggestion.text}</span>
-                </button>
-              ))}
+            
+            <div className="text-center max-w-md">
+              <h2 className="text-2xl font-bold text-white mb-2">Hey Younes! <span className="wave"></span></h2>
+              <p className="text-gray-400 mb-8 leading-relaxed">
+                I&apos;m Kimi, your AI CEO and command center. I can help you manage agents, 
+                track projects, remember important details, or just have a conversation.
+              </p>
+              
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Quick Actions</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { icon: "🤖", text: "Create agent", desc: "Build a new AI agent" },
+                    { icon: "📋", text: "View tasks", desc: "Check your todo list" },
+                    { icon: "🧠", text: "Memory", desc: "What I remember" },
+                    { icon: "⚡", text: "Quick help", desc: "Ask me anything" },
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion.text}
+                      onClick={() => { setInput(suggestion.text); inputRef.current?.focus(); }}
+                      className="flex items-start gap-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] hover:border-accent/20 transition-all group text-left"
+                    >
+                      <span className="text-xl">{suggestion.icon}</span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-200 group-hover:text-white">{suggestion.text}</p>
+                        <p className="text-[10px] text-gray-500">{suggestion.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}
