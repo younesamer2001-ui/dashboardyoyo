@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { sessions_spawn } from '@/lib/sessions';
 
 // Agent configurations with distinct personalities
 const agentConfigs = {
