@@ -353,7 +353,15 @@ export default function ChatPage() {
   /* ─── Auto Scroll ─── */
   useEffect(() => {
     if (!streamingMsgId) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      // Only auto-scroll if user is already near bottom (within 100px)
+      const container = chatContainerRef.current;
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        if (isNearBottom) {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      }
     }
   }, [messages, streamingMsgId]);
 
