@@ -471,8 +471,7 @@ export default function ExpertReviewTeam() {
               <p className="text-xs text-[#8a8a9a] line-clamp-2">{expert.specialty}</p>
 
               {hasReviewed && (
-                <div className="mt-3 flex items-center gap-1 text-emerald-400 text-xs"
-                >
+                <div className="mt-3 flex items-center gap-1 text-emerald-400 text-xs">
                   <CheckCircle className="w-3 h-3" />
                   Review complete
                 </div>
