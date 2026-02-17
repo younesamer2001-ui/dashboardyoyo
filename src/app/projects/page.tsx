@@ -2,418 +2,277 @@
 
 import { useEffect, useState } from "react";
 import {
-  FolderKanban, Plus, Rocket, CheckCircle2, TrendingUp,
-  Clock, ArrowRight, ExternalLink, GitBranch, AlertCircle,
-  PauseCircle, Pause, Play, CheckCircle
+  FolderKanban, Plus, GitBranch, ExternalLink,
+  Clock, ArrowUpRight, Github, Star,
+  GitCommit, AlertCircle, CheckCircle2
 } from "lucide-react";
 
-interface Project {
-  id: string;
+interface GitHubRepo {
+  id: number;
   name: string;
+  full_name: string;
   description: string;
-  status: "active" | "paused" | "blocked" | "completed";
-  progress: number;
-  category: string;
-  tech: string[];
-  repoUrl?: string;
-  liveUrl?: string;
-  lastActivity: string;
-  tasksTotal: number;
-  tasksDone: number;
-  createdAt: string;
-  priority: "high" | "medium" | "low";
+  html_url: string;
+  stargazers_count: number;
+  updated_at: string;
+  pushed_at: string;
+  language: string;
+  default_branch: string;
 }
 
-const mockProjects: Project[] = [
-  {
-    id: "1",
-    name: "Dashboard YOYO",
-    description: "AI Command Center for agent management, tasks, and real-time monitoring",
-    status: "active",
-    progress: 75,
-    category: "Productivity",
-    tech: ["Next.js", "TypeScript", "Tailwind", "Supabase"],
-    repoUrl: "https://github.com/younesamer2001-ui/dashboardyoyo",
-    liveUrl: "https://dashboardyoyo.com",
-    lastActivity: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    tasksTotal: 24,
-    tasksDone: 18,
-    createdAt: "2025-02-15",
-    priority: "high"
-  },
-  {
-    id: "2",
-    name: "Siha Shopify",
-    description: "E-commerce platform for Siha with Tekla-inspired theme",
-    status: "active",
-    progress: 60,
-    category: "E-commerce",
-    tech: ["Shopify", "Liquid", "CSS"],
-    liveUrl: "https://siha.no",
-    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    tasksTotal: 15,
-    tasksDone: 9,
-    createdAt: "2025-01-20",
-    priority: "high"
-  },
-  {
-    id: "3",
-    name: "X/Twitter Agent",
-    description: "Automated content creation and posting system for X/Twitter",
-    status: "active",
-    progress: 85,
-    category: "Automation",
-    tech: ["n8n", "X API", "OpenAI"],
-    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    tasksTotal: 12,
-    tasksDone: 10,
-    createdAt: "2025-02-01",
-    priority: "medium"
-  },
-  {
-    id: "4",
-    name: "AI Receptionist",
-    description: "Voice AI system for plumbers and tradespeople",
-    status: "paused",
-    progress: 30,
-    category: "AI Service",
-    tech: ["Vapi", "n8n", "Voice AI"],
-    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    tasksTotal: 20,
-    tasksDone: 6,
-    createdAt: "2025-02-10",
-    priority: "medium"
-  }
-];
-
-function getRelativeTime(timestamp: string): string {
-  const now = new Date();
-  const date = new Date(timestamp);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return diffMin + "m ago";
-  if (diffHour < 24) return diffHour + "h ago";
-  if (diffDay === 1) return "Yesterday";
-  return diffDay + "d ago";
+interface RepoStats {
+  totalCommits: number;
+  thisWeek: number;
+  lastPush: string | null;
 }
 
-function StatusBadge({ status }: { status: Project["status"] }) {
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-        <Rocket className="w-3.5 h-3.5" />
-        Active
-      </span>
-    );
-  }
-  if (status === "paused") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-        <PauseCircle className="w-3.5 h-3.5" />
-        Paused
-      </span>
-    );
-  }
-  if (status === "blocked") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-        <AlertCircle className="w-3.5 h-3.5" />
-        Blocked
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-      <CheckCircle className="w-3.5 h-3.5" />
-      Completed
-    </span>
-  );
+interface GitHubCommit {
+  sha: string;
+  commit: {
+    message: string;
+    author: {
+      name: string;
+      date: string;
+    };
+  };
 }
 
-function PriorityBadge({ priority }: { priority: Project["priority"] }) {
-  if (priority === "high") {
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border bg-red-500/10 text-red-400 border-red-500/20">
-        High
-      </span>
-    );
-  }
-  if (priority === "medium") {
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
-        Medium
-      </span>
-    );
-  }
-  return (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border bg-gray-500/10 text-gray-400 border-gray-500/20">
-      Low
-    </span>
-  );
-}
+const languageColors: Record<string, string> = {
+  TypeScript: "bg-blue-500",
+  JavaScript: "bg-yellow-500",
+  Python: "bg-green-500",
+  "Liquid": "bg-purple-500",
+  CSS: "bg-pink-500",
+  HTML: "bg-orange-500",
+  default: "bg-gray-500"
+};
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [filter, setFilter] = useState<"all" | Project["status"]> ("all");
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [repoStats, setRepoStats] = useState<Record<string, RepoStats>>({});
+  const [recentCommits, setRecentCommits] = useState<GitHubCommit[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setTimeout(() => {
-      setProjects(mockProjects);
-      setLoading(false);
-    }, 500);
+    fetchGitHubData();
+    const interval = setInterval(fetchGitHubData, 60000); // Refresh every minute
+    return () => clearInterval(interval);
   }, []);
 
-  const filteredProjects = filter === "all" 
-    ? projects 
-    : projects.filter(p => p.status === filter);
+  const fetchGitHubData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch repos
+      const reposRes = await fetch("/api/github");
+      const reposData = await reposRes.json();
+      
+      if (reposData.success) {
+        setRepos(reposData.repos);
+        
+        // Fetch stats for each repo
+        const stats: Record<string, RepoStats> = {};
+        for (const repo of reposData.repos) {
+          const statsRes = await fetch("/api/github", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ repo: repo.name, type: "stats" }),
+          });
+          const statsData = await statsRes.json();
+          if (statsData.success) {
+            stats[repo.name] = statsData.stats;
+          }
+          
+          // Fetch recent commits for first repo
+          if (repo.name === reposData.repos[0]?.name) {
+            const commitsRes = await fetch("/api/github", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ repo: repo.name, type: "commits" }),
+            });
+            const commitsData = await commitsRes.json();
+            if (commitsData.success) {
+              setRecentCommits(commitsData.commits.slice(0, 5));
+            }
+          }
+        }
+        setRepoStats(stats);
+      }
+    } catch (error) {
+      console.error("Failed to fetch GitHub data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const stats = {
-    total: projects.length,
-    active: projects.filter(p => p.status === "active").length,
-    completed: projects.filter(p => p.status === "completed").length,
-    blocked: projects.filter(p => p.status === "blocked").length,
-    avgProgress: Math.round(projects.reduce((acc, p) => acc + p.progress, 0) / projects.length) || 0,
+  const getRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffMin < 1) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHour < 24) return `${diffHour}h ago`;
+    if (diffDay === 1) return "Yesterday";
+    return `${diffDay}d ago`;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-3rem)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      <div className="flex items-center justify-center h-64">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#5b8aff] border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="pt-16 lg:pt-0 max-w-6xl mx-auto space-y-6 pb-24">
+    <div className="space-y-6">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <FolderKanban className="w-5 h-5 text-accent" />
-            </div>
+          <h1 className="text-2xl font-semibold text-white flex items-center gap-3">
+            <FolderKanban className="w-6 h-6 text-[#5b8aff]" />
             Projects
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Manage and track all your active projects</p>
+          <p className="text-[#8a8a9a] text-sm mt-1">Connected to GitHub • {repos.length} repositories</p>
         </div>
         
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl font-medium transition-colors">
+        <a
+          href="https://github.com/new"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-4 py-2.5 bg-white text-black rounded-lg font-medium transition-colors text-sm hover:bg-gray-200"
+        >
           <Plus className="w-4 h-4" />
-          New Project
-        </button>
+          New Repo
+        </a>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
-            <FolderKanban className="w-4 h-4 text-blue-400" />
-          </div>
-          <p className="text-2xl font-bold text-white">{stats.total}</p>
-          <p className="text-xs text-gray-500">Total Projects</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center mb-3">
-            <Rocket className="w-4 h-4 text-green-400" />
-          </div>
-          <p className="text-2xl font-bold text-white">{stats.active}</p>
-          <p className="text-xs text-gray-500">Active</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
-            <CheckCircle2 className="w-4 h-4 text-blue-400" />
-          </div>
-          <p className="text-2xl font-bold text-white">{stats.completed}</p>
-          <p className="text-xs text-gray-500">Completed</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-3">
-            <TrendingUp className="w-4 h-4 text-amber-400" />
-          </div>
-          <p className="text-2xl font-bold text-white">{stats.avgProgress}%</p>
-          <p className="text-xs text-gray-500">Avg Progress</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        <button
-          onClick={() => setFilter("all")}
-          className={filter === "all" 
-            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          All Projects
-          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.total}</span>
-        </button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <button
-          onClick={() => setFilter("active")}
-          className={filter === "active"
-            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          Active
-          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.active}</span>
-        </button>
-        
-        <button
-          onClick={() => setFilter("paused")}
-          className={filter === "paused"
-            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          Paused
-          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{projects.filter(p => p.status === "paused").length}</span>
-        </button>
-        
-        <button
-          onClick={() => setFilter("blocked")}
-          className={filter === "blocked"
-            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          Blocked
-          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.blocked}</span>
-        </button>
-        
-        <button
-          onClick={() => setFilter("completed")}
-          className={filter === "completed"
-            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
-            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-          }
-        >
-          Completed
-          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.completed}</span>
-        </button>
-      </div>
-
-      {/* Projects Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredProjects.map((project) => (
-          <div 
-            key={project.id}
-            className="group rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-accent/20 hover:bg-white/[0.04] transition-all p-5"
-          >
-            {/* Top Row */}
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/10 flex items-center justify-center text-xl text-white">
-                  {project.name.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white group-hover:text-accent transition-colors">
-                    {project.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{project.category}</p>
-                </div>
-              </div>
+        {/* Projects List */}
+        <div className="lg:col-span-2 space-y-4">
+          <h2 className="text-sm font-medium text-[#8a8a9a] uppercase tracking-wider">Repositories</h2>
+          
+          <div className="space-y-3">
+            {repos.map((repo) => {
+              const stats = repoStats[repo.name];
+              const langColor = languageColors[repo.language] || languageColors.default;
               
-              <div className="flex items-center gap-2">
-                <PriorityBadge priority={project.priority} />
-                <StatusBadge status={project.status} />
-              </div>
-            </div>
-
-            {/* Description */}
-            <p className="text-sm text-gray-400 mb-4 line-clamp-2">{project.description}</p>
-
-            {/* Progress */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="text-gray-500">Progress</span>
-                <span className="text-white font-medium">{project.progress}%</span>
-              </div>
-              <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full transition-all duration-500"
-                  style={{ width: project.progress + "%" }}
-                />
-              </div>
-            </div>
-
-            {/* Tech Stack */}
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {project.tech.map((t) => (
-                <span 
-                  key={t}
-                  className="px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] text-gray-400 border border-white/[0.06]"
+              return (
+                <a
+                  key={repo.id}
+                  href={repo.html_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block p-5 rounded-xl bg-[#13131f] border border-white/[0.06] hover:border-white/[0.1] hover:bg-[#1c1c28] transition-all"
                 >
-                  {t}
-                </span>
-              ))}
-            </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <Github className="w-5 h-5 text-[#5a5a6a]" />
+                        <h3 className="font-semibold text-white group-hover:text-[#5b8aff] transition-colors">
+                          {repo.name}
+                        </h3>
+                        <span className={`w-2 h-2 rounded-full ${langColor}`} />
+                        <span className="text-xs text-[#5a5a6a]">{repo.language}</span>
+                      </div>
+                      
+                      <p className="text-sm text-[#8a8a9a] mt-2">{repo.description || "No description"}</p>
+                      
+                      <div className="flex items-center gap-4 mt-4">
+                        <div className="flex items-center gap-1.5 text-xs text-[#5a5a6a]">
+                          <GitCommit className="w-3.5 h-3.5" />
+                          {stats?.totalCommits || 0} commits
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5 text-xs text-[#5a5a6a]">
+                          <Star className="w-3.5 h-3.5" />
+                          {repo.stargazers_count}
+                        </div>
+                        
+                        {stats?.thisWeek > 0 && (
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                            {stats.thisWeek} this week
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center gap-1.5 text-xs text-[#5a5a6a]">
+                          <Clock className="w-3.5 h-3.5" />
+                          {getRelativeTime(repo.pushed_at)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <ExternalLink className="w-4 h-4 text-[#5a5a6a] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>                
+                </a>
+              );
+            })}
+          </div>
+        </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  {getRelativeTime(project.lastActivity)}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {project.tasksDone}/{project.tasksTotal} tasks
+        {/* Activity Feed */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-medium text-[#8a8a9a] uppercase tracking-wider">Recent Activity</h2>
+          
+          <div className="bg-[#13131f] border border-white/[0.06] rounded-xl p-4">
+            <div className="space-y-4">
+              {recentCommits.map((commit, i) => (
+                <div key={commit.sha} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-2 h-2 rounded-full bg-[#5b8aff]" />
+                    {i < recentCommits.length - 1 && (
+                      <div className="w-px flex-1 bg-white/[0.06] my-1" />
+                    )}
+                  </div>
+                  <div className="flex-1 pb-4">
+                    <p className="text-sm text-white line-clamp-1">{commit.commit.message}</p>
+                    <p className="text-xs text-[#5a5a6a] mt-0.5">
+                      {commit.commit.author.name} • {getRelativeTime(commit.commit.author.date)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              
+              {recentCommits.length === 0 && (
+                <p className="text-center text-[#5a5a6a] text-sm py-4">No recent activity</p>
+              )}
+            </div>          
+          </div>
+
+          {/* Quick Stats */}
+          <div className="bg-[#13131f] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white mb-4">Overview</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-[#8a8a9a]">Total Repos</span>
+                <span className="text-white">{repos.length}</span>
+              </div>
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-[#8a8a9a]">This Week</span>
+                <span className="text-emerald-400">
+                  {Object.values(repoStats).reduce((acc, s) => acc + (s?.thisWeek || 0), 0)} commits
                 </span>
               </div>
               
-              <div className="flex items-center gap-2">
-                {project.repoUrl && (
-                  <a 
-                    href={project.repoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-white transition-colors"
-                    title="View Code"
-                  >
-                    <GitBranch className="w-4 h-4" />
-                  </a>
-                )}
-                {project.liveUrl && (
-                  <a 
-                    href={project.liveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-white transition-colors"
-                    title="Open Live"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
-                
-                <button className="p-2 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition-colors">
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+              <div className="flex justify-between text-sm">
+                <span className="text-[#8a8a9a]">Total Stars</span>
+                <span className="text-white">
+                  {repos.reduce((acc, r) => acc + r.stargazers_count, 0)}
+                </span>
               </div>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {filteredProjects.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-2xl bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-            <FolderKanban className="w-8 h-8 text-gray-600" />
-          </div>
-          <p className="text-white font-medium mb-1">No projects found</p>
-          <p className="text-gray-500 text-sm">Create your first project to get started</p>
         </div>
-      )}
+      </div>
     </div>
   );
 }
