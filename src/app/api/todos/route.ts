@@ -11,15 +11,20 @@ export async function GET(request: NextRequest) {
     let todos = data.todos || [];
     
     if (status && status !== 'all') {
-      todos = todos.filter((t: any) => t.status === status);
+      todos = todos.filter((t: any) => t.workStatus === status || t.status === status);
     }
     
-    // Sort by priority
-    const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+    // Sort: working first, then next, then blocked, then pending
+    const statusOrder = { working: 0, next: 1, blocked: 2, pending: 3, completed: 4 };
     todos.sort((a: any, b: any) => {
-      if (priorityOrder[a.priority as keyof typeof priorityOrder] !== priorityOrder[b.priority as keyof typeof priorityOrder]) {
-        return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
-      }
+      const orderA = statusOrder[a.workStatus as keyof typeof statusOrder] ?? 3;
+      const orderB = statusOrder[b.workStatus as keyof typeof statusOrder] ?? 3;
+      if (orderA !== orderB) return orderA - orderB;
+      // Then by priority
+      const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+      const prioA = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 2;
+      const prioB = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 2;
+      if (prioA !== prioB) return prioA - prioB;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     
@@ -30,7 +35,10 @@ export async function GET(request: NextRequest) {
         total: todos.length,
         pending: todos.filter((t: any) => t.status === 'pending').length,
         completed: todos.filter((t: any) => t.status === 'completed').length,
-        urgent: todos.filter((t: any) => t.priority === 'urgent' && t.status === 'pending').length,
+        working: todos.filter((t: any) => t.workStatus === 'working').length,
+        next: todos.filter((t: any) => t.workStatus === 'next').length,
+        blocked: todos.filter((t: any) => t.workStatus === 'blocked').length,
+        kimisTasks: todos.filter((t: any) => t.assignee === 'kimi').length,
       }
     });
   } catch (error) {
@@ -43,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, priority = 'medium', dueDate, tags = [] } = body;
+    const { title, description, priority = 'medium', dueDate, tags = [], assignee = 'kimi', workStatus = 'pending' } = body;
     
     if (!title) {
       return Response.json({ success: false, error: 'Title is required' }, { status: 400 });
@@ -59,6 +67,8 @@ export async function POST(request: NextRequest) {
       priority,
       dueDate: dueDate || null,
       tags,
+      assignee, // 'kimi' or 'user'
+      workStatus, // 'pending', 'working', 'next', 'blocked', 'completed'
       createdAt: new Date().toISOString(),
       completedAt: null,
       createdBy: 'user',
@@ -80,7 +90,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, status, title, description, priority } = body;
+    const { id, status, title, description, priority, assignee, workStatus } = body;
     
     const data = await readData();
     const todoIndex = data.todos?.findIndex((t: any) => t.id === id);
@@ -95,11 +105,14 @@ export async function PATCH(request: NextRequest) {
       todo.status = status;
       if (status === 'completed') {
         todo.completedAt = new Date().toISOString();
+        todo.workStatus = 'completed';
       }
     }
     if (title) todo.title = title;
     if (description) todo.description = description;
     if (priority) todo.priority = priority;
+    if (assignee) todo.assignee = assignee;
+    if (workStatus) todo.workStatus = workStatus;
     
     await writeData(data);
     
