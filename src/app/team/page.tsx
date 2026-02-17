@@ -171,7 +171,7 @@ export default function TeamChatPage() {
 
     // Add message to active team
     setTeams((prev) =>
-      prev.map((team) =
+      prev.map((team) =>
         team.id === activeTeamId
           ? { ...team, messages: [...team.messages, userMessage] }
           : team
@@ -228,7 +228,7 @@ export default function TeamChatPage() {
 
         // Add all messages to active team
         setTeams((prev) =
-          prev.map((team) =
+          prev.map((team) =>
             team.id === activeTeamId
               ? { ...team, messages: [...team.messages, ...newMessages] }
               : team
@@ -248,7 +248,7 @@ export default function TeamChatPage() {
       };
 
       setTeams((prev) =
-        prev.map((team) =
+        prev.map((team) =>
           team.id === activeTeamId
             ? { ...team, messages: [...team.messages, errorMessage] }
             : team
