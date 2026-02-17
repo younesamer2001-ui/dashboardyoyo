@@ -16,11 +16,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="no" className="dark">
-      <body className="font-sans antialiased">
+    <html lang="no">
+      <body className="font-sans antialiased bg-[#0a0a0f] text-[#f0f0f5]">
         <Sidebar />
-        <main className="min-h-screen p-4 md:p-6 lg:ml-64 transition-all duration-300">
-          {children}
+        <main className="min-h-screen p-4 md:p-6 lg:pl-64 pt-20 lg:pt-6 transition-all">
+          <div className="max-w-6xl mx-auto">
+            {children}
+          </div>
         </main>
       </body>
     </html>
