@@ -564,7 +564,7 @@ export default function NewsPage() {
                         borderRadius: "8px",
                         color: "#fff",
                       }}
-                      formatter={(val: number) => [formatPrice(val), "Pris"]}
+                      formatter={(val) => [formatPrice(Number(val)), "Pris"]}
                     />
                     
                     <Area
