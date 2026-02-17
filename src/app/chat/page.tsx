@@ -338,6 +338,10 @@ export default function ChatPage() {
         const data = await res.json();
         if (data.messages) {
           setMessages(data.messages);
+          // Scroll to bottom after loading messages
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+          }, 100);
         }
       } catch (error) {
         console.error("Failed to fetch messages:", error);
@@ -353,12 +357,14 @@ export default function ChatPage() {
   /* ─── Auto Scroll ─── */
   useEffect(() => {
     if (!streamingMsgId) {
-      // Only auto-scroll if user is already near bottom (within 100px)
       const container = chatContainerRef.current;
       if (container) {
         const { scrollTop, scrollHeight, clientHeight } = container;
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-        if (isNearBottom) {
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
+        // Scroll if: near bottom OR last message is from user (just sent)
+        const lastMsg = messages[messages.length - 1];
+        const isUserMessage = lastMsg?.sender === 'user';
+        if (isNearBottom || isUserMessage) {
           messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }
       }
@@ -539,6 +545,11 @@ export default function ChatPage() {
       attachments: files,
     };
     setMessages((prev) => [...prev, userMsg]);
+    
+    // Scroll to bottom immediately after sending
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
 
     try {
       const res = await fetch("/api/chat", {
