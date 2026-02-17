@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, status, title, description, priority, assignee, workStatus } = body;
+    const { id, status, title, description, priority, assignee, workStatus, dueDate, tags } = body;
     
     const data = await readData();
     const todoIndex = data.todos?.findIndex((t: any) => t.id === id);
