@@ -19,10 +19,11 @@ const fallbackNavItems = [
   { href: "/", label: "Overview", icon: "LayoutDashboard" },
   { href: "/todos", label: "Tasks", icon: "CheckCircle" },
   { href: "/projects", label: "Projects", icon: "FolderKanban" },
+  { href: "/team", label: "Team Chat", icon: "Users" },
   { href: "/files", label: "Files", icon: "FileText" },
-  { href: "/agents", label: "Agents", icon: "Users" },
+  { href: "/agents", label: "Agents", icon: "Bot" },
   { href: "/brain", label: "Brain", icon: "Brain" },
-  { href: "/feed", label: "Feed", icon: "Activity" },
+  { href: "/feed", label: "Activity", icon: "Activity" },
   { href: "/chat", label: "Chat", icon: "MessageSquare" },
 ];
 
