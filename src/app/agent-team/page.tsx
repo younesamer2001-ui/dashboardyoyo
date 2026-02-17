@@ -239,7 +239,7 @@ export default function AgentTeamPage() {
     setMessages((prev) => [...prev, message]);
   };
 
-  const addActionMessage = async (member: TeamMember, text: string, actionType: Message["action"]["type"], status: Message["action"]["status"]) => {
+  const addActionMessage = async (member: TeamMember, text: string, actionType: "deploy" | "task" | "commit" | "review", status: "pending" | "in_progress" | "completed" | "failed") => {
     const message: Message = {
       id: `action-${Date.now()}`,
       senderId: member.id,
