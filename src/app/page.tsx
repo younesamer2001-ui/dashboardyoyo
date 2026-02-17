@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, CheckCircle, Users, Clock, MessageSquare, 
   Send, Zap, Search, FileText, BarChart3, Bot, Sparkles, 
-  TrendingUp, Calendar, ArrowRight, Command, Plus
+  TrendingUp, Calendar, ArrowRight, Command, Plus,
+  Activity, GitCommit, Rocket, CheckCircle2
 } from "lucide-react";
 
 interface Stats {
@@ -150,6 +151,32 @@ export default function OverviewPage() {
             <p className="font-medium text-white">{action.label}</p>
           </a>
         ))}
+      </section>
+
+      {/* Live Activity Widget */}
+      <section className="bg-[#13131f] border border-white/[0.06] rounded-xl p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-[#5b8aff]" />
+            <span className="text-sm font-medium text-white">Live Activity</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <a href="/feed" className="text-xs text-[#5b8aff] hover:text-[#7ca4ff]">View all →</a>
+        </div>
+        
+        <div className="space-y-3">
+          {[
+            { type: 'commit', icon: GitCommit, color: 'text-blue-400', message: 'Pushed 3 commits to dashboardyoyo', time: '2m ago' },
+            { type: 'deploy', icon: Rocket, color: 'text-emerald-400', message: 'Deployed to production', time: '5m ago' },
+            { type: 'task', icon: CheckCircle2, color: 'text-amber-400', message: 'Completed: File Browser', time: '15m ago' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3 text-sm">
+              <item.icon className={`w-4 h-4 ${item.color}`} />
+              <span className="text-[#8a8a9a] flex-1">{item.message}</span>
+              <span className="text-xs text-[#5a5a6a]">{item.time}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* Command Bar - Linear style */}
