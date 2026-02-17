@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import {
-  FolderKanban, Plus, MoreHorizontal, GitBranch, ExternalLink,
-  MessageSquare, Rocket, PauseCircle, AlertCircle, CheckCircle2,
-  Clock, Calendar, ArrowUpRight, TrendingUp, Activity, Code2,
-  Terminal, RefreshCw, Trash2, Edit3, ArrowRight
+  FolderKanban, Plus, Rocket, CheckCircle2, TrendingUp,
+  Clock, ArrowRight, ExternalLink, GitBranch, AlertCircle,
+  PauseCircle, Pause, Play, CheckCircle
 } from "lucide-react";
 
 interface Project {
@@ -96,51 +95,73 @@ function getRelativeTime(timestamp: string): string {
   const diffDay = Math.floor(diffHour / 24);
 
   if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffMin < 60) return diffMin + "m ago";
+  if (diffHour < 24) return diffHour + "h ago";
   if (diffDay === 1) return "Yesterday";
-  return `${diffDay}d ago`;
+  return diffDay + "d ago";
 }
 
 function StatusBadge({ status }: { status: Project["status"] }) {
-  const config = {
-    active: { icon: Rocket, color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/20", label: "Active" },
-    paused: { icon: PauseCircle, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Paused" },
-    blocked: { icon: AlertCircle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", label: "Blocked" },
-    completed: { icon: CheckCircle2, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Completed" },
-  };
-  
-  const { icon: Icon, color, bg, border, label } = config[status];
-  
+  if (status === "active") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+        <Rocket className="w-3.5 h-3.5" />
+        Active
+      </span>
+    );
+  }
+  if (status === "paused") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        <PauseCircle className="w-3.5 h-3.5" />
+        Paused
+      </span>
+    );
+  }
+  if (status === "blocked") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+        <AlertCircle className="w-3.5 h-3.5" />
+        Blocked
+      </span>
+    );
+  }
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${bg} ${color} border ${border}`}>
-      <Icon className="w-3.5 h-3.5" />
-      {label}
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+      <CheckCircle className="w-3.5 h-3.5" />
+      Completed
     </span>
   );
 }
 
 function PriorityBadge({ priority }: { priority: Project["priority"] }) {
-  const colors = {
-    high: "bg-red-500/10 text-red-400 border-red-500/20",
-    medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    low: "bg-gray-500/10 text-gray-400 border-gray-500/20",
-  };
-  
+  if (priority === "high") {
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border bg-red-500/10 text-red-400 border-red-500/20">
+        High
+      </span>
+    );
+  }
+  if (priority === "medium") {
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+        Medium
+      </span>
+    );
+  }
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border ${colors[priority]}`}>
-      {priority}
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase border bg-gray-500/10 text-gray-400 border-gray-500/20">
+      Low
     </span>
   );
 }
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [filter, setFilter] = useState<"all" | Project["status"]>("all");
+  const [filter, setFilter] = useState<"all" | Project["status"]> ("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data - later connect to real API
     setTimeout(() => {
       setProjects(mockProjects);
       setLoading(false);
@@ -190,48 +211,95 @@ export default function ProjectsPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Total Projects", value: stats.total, icon: FolderKanban, color: "text-blue-400", bg: "bg-blue-500/10" },
-          { label: "Active", value: stats.active, icon: Rocket, color: "text-green-400", bg: "bg-green-500/10" },
-          { label: "Completed", value: stats.completed, icon: CheckCircle2, color: "text-blue-400", bg: "bg-blue-500/10" },
-          { label: "Avg Progress", value: `${stats.avgProgress}%`, icon: TrendingUp, color: "text-amber-400", bg: "bg-amber-500/10" },
-        ].map((stat) => (
-          <div key={stat.label} className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-            <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center mb-3`>
-              <stat.icon className={`w-4 h-4 ${stat.color}`} />
-            </div>
-            <p className="text-2xl font-bold text-white">{stat.value}</p>
-            <p className="text-xs text-gray-500">{stat.label}</p>
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
+            <FolderKanban className="w-4 h-4 text-blue-400" />
           </div>
-        ))}
+          <p className="text-2xl font-bold text-white">{stats.total}</p>
+          <p className="text-xs text-gray-500">Total Projects</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+          <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center mb-3">
+            <Rocket className="w-4 h-4 text-green-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.active}</p>
+          <p className="text-xs text-gray-500">Active</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
+            <CheckCircle2 className="w-4 h-4 text-blue-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.completed}</p>
+          <p className="text-xs text-gray-500">Completed</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-3">
+            <TrendingUp className="w-4 h-4 text-amber-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.avgProgress}%</p>
+          <p className="text-xs text-gray-500">Avg Progress</p>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        {[
-          { key: "all", label: "All Projects", count: stats.total },
-          { key: "active", label: "Active", count: stats.active },
-          { key: "paused", label: "Paused", count: projects.filter(p => p.status === "paused").length },
-          { key: "blocked", label: "Blocked", count: stats.blocked },
-          { key: "completed", label: "Completed", count: stats.completed },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key as any)}
-            className={`
-              px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
-              ${filter === f.key 
-                ? "bg-accent/20 text-accent border border-accent/30" 
-                : "bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
-              }
-            `}
-          >
-            {f.label}
-            <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">
-              {f.count}
-            </span>
-          </button>
-        ))}
+        <button
+          onClick={() => setFilter("all")}
+          className={filter === "all" 
+            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
+            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
+          }
+        >
+          All Projects
+          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.total}</span>
+        </button>
+        
+        <button
+          onClick={() => setFilter("active")}
+          className={filter === "active"
+            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
+            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
+          }
+        >
+          Active
+          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.active}</span>
+        </button>
+        
+        <button
+          onClick={() => setFilter("paused")}
+          className={filter === "paused"
+            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
+            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
+          }
+        >
+          Paused
+          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{projects.filter(p => p.status === "paused").length}</span>
+        </button>
+        
+        <button
+          onClick={() => setFilter("blocked")}
+          className={filter === "blocked"
+            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
+            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
+          }
+        >
+          Blocked
+          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.blocked}</span>
+        </button>
+        
+        <button
+          onClick={() => setFilter("completed")}
+          className={filter === "completed"
+            ? "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-accent/20 text-accent border border-accent/30"
+            : "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all bg-white/[0.02] text-gray-400 border border-white/[0.06] hover:bg-white/[0.04]"
+          }
+        >
+          Completed
+          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/[0.06] text-[10px]">{stats.completed}</span>
+        </button>
       </div>
 
       {/* Projects Grid */}
@@ -244,7 +312,7 @@ export default function ProjectsPage() {
             {/* Top Row */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/10 flex items-center justify-center text-xl">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/10 flex items-center justify-center text-xl text-white">
                   {project.name.charAt(0)}
                 </div>
                 <div>
@@ -273,7 +341,7 @@ export default function ProjectsPage() {
               <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full transition-all duration-500"
-                  style={{ width: `${project.progress}%` }}
+                  style={{ width: project.progress + "%" }}
                 />
               </div>
             </div>
@@ -326,6 +394,7 @@ export default function ProjectsPage() {
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
+                
                 <button className="p-2 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition-colors">
                   <ArrowRight className="w-4 h-4" />
                 </button>
