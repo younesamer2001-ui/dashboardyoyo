@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Users, Send, Palette, FileText, Plug, Gauge, CheckCircle,
-  Loader2, Lightbulb, AlertCircle, ArrowRight, Sparkles,
-  ChevronDown, ChevronUp, Target, TrendingUp, Eye
+  Users, Palette, FileText, Plug, Gauge, CheckCircle,
+  Loader2, Lightbulb, ArrowRight, Sparkles,
+  Target, TrendingUp, Eye
 } from "lucide-react";
 
 interface Expert {
@@ -51,7 +51,6 @@ interface FinalRecommendation {
   estimatedImpact: string;
 }
 
-// The 4 Expert Agents
 const experts: Expert[] = [
   {
     id: "ui-expert",
@@ -61,13 +60,7 @@ const experts: Expert[] = [
     icon: Palette,
     color: "text-purple-400",
     bgColor: "bg-purple-500/10",
-    responsibilities: [
-      "Visual consistency",
-      "User flow optimization",
-      "Mobile responsiveness",
-      "Accessibility (WCAG)",
-      "Interaction design"
-    ]
+    responsibilities: ["Visual consistency", "User flow optimization", "Mobile responsiveness", "Accessibility (WCAG)", "Interaction design"]
   },
   {
     id: "content-expert",
@@ -77,13 +70,7 @@ const experts: Expert[] = [
     icon: FileText,
     color: "text-blue-400",
     bgColor: "bg-blue-500/10",
-    responsibilities: [
-      "Content hierarchy",
-      "Labeling & terminology",
-      "Information density",
-      "Empty states",
-      "User guidance"
-    ]
+    responsibilities: ["Content hierarchy", "Labeling terminology", "Information density", "Empty states", "User guidance"]
   },
   {
     id: "integration-expert",
@@ -93,29 +80,17 @@ const experts: Expert[] = [
     icon: Plug,
     color: "text-emerald-400",
     bgColor: "bg-emerald-500/10",
-    responsibilities: [
-      "Data source reliability",
-      "API integration quality",
-      "Real-time updates",
-      "Error handling",
-      "Feature completeness"
-    ]
+    responsibilities: ["Data source reliability", "API integration quality", "Real-time updates", "Error handling", "Feature completeness"]
   },
   {
     id: "performance-expert",
     name: "Paul",
-    role: "Performance & QA Lead",
+    role: "Performance QA Lead",
     specialty: "Speed, stability, testing, monitoring",
     icon: Gauge,
     color: "text-amber-400",
     bgColor: "bg-amber-500/10",
-    responsibilities: [
-      "Page load speed",
-      "Build optimization",
-      "Error monitoring",
-      "Browser compatibility",
-      "Security basics"
-    ]
+    responsibilities: ["Page load speed", "Build optimization", "Error monitoring", "Browser compatibility", "Security basics"]
   }
 ];
 
@@ -125,7 +100,6 @@ export default function ExpertReviewTeam() {
   const [reviews, setReviews] = useState<ExpertReview[]>([]);
   const [finalRecommendation, setFinalRecommendation] = useState<FinalRecommendation | null>(null);
   const [selectedExpert, setSelectedExpert] = useState<string | null>(null);
-  const [userInput, setUserInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -137,36 +111,29 @@ export default function ExpertReviewTeam() {
     setPhase("discussing");
     setIsProcessing(true);
     
-    // Each expert introduces themselves and starts analyzing
     for (const expert of experts) {
       await addDiscussion(expert.id, getOpeningAnalysis(expert), "analysis");
       await delay(800);
     }
 
-    // Cross-expert discussion
     await runCrossDiscussion();
-    
-    // Generate individual reviews
     setPhase("reviewing");
     await generateExpertReviews();
-    
-    // Compile final recommendation
     await compileFinalRecommendation();
-    
     setPhase("presenting");
     setIsProcessing(false);
   };
 
   const runCrossDiscussion = async () => {
     const crossTalks = [
-      { from: "ui-expert", to: "integration-expert", msg: "Nina, I'm concerned about the loading states while data fetches. Can we show better skeleton screens?" },
-      { from: "integration-expert", to: "ui-expert", msg: "Good point, Maya. I can add progressive loading. The Yahoo Finance API is reliable, but we should handle offline states better." },
-      { from: "content-expert", to: "ui-expert", msg: "Maya, the 'News' section title is too generic. Should we be more specific about it being financial news?" },
-      { from: "ui-expert", to: "content-expert", msg: "Agreed, Oliver. 'Markets & Finance' would be clearer. Also, we need better empty states for the news feed." },
-      { from: "performance-expert", to: "integration-expert", msg: "Nina, the chart data is quite heavy. Can we implement data caching or virtualization for the 1-year view?" },
-      { from: "integration-expert", to: "performance-expert", msg: "Absolutely, Paul. I'll suggest downsampling for longer time ranges. We don't need hourly data for 1-year views." },
-      { from: "content-expert", to: "performance-expert", msg: "Paul, are the commodity descriptions clear enough? I worry new users won't understand what 'BRENT' means." },
-      { from: "performance-expert", to: "content-expert", msg: "Valid concern. Adding tooltips or a legend would help without hurting performance." },
+      { from: "ui-expert", msg: "Nina, I'm concerned about loading states while data fetches. Can we show better skeleton screens?" },
+      { from: "integration-expert", msg: "Good point, Maya. I can add progressive loading. Yahoo Finance API is reliable, but we should handle offline states better." },
+      { from: "content-expert", msg: "Maya, the News section title is too generic. Should we be more specific about financial news?" },
+      { from: "ui-expert", msg: "Agreed, Oliver. Markets and Finance would be clearer. Also need better empty states for the news feed." },
+      { from: "performance-expert", msg: "Nina, the chart data is heavy. Can we implement caching or virtualization for 1-year view?" },
+      { from: "integration-expert", msg: "Absolutely, Paul. I'll suggest downsampling for longer time ranges." },
+      { from: "content-expert", msg: "Paul, are commodity descriptions clear? I worry new users won't understand what BRENT means." },
+      { from: "performance-expert", msg: "Valid concern. Adding tooltips would help without hurting performance." },
     ];
 
     for (const talk of crossTalks) {
@@ -180,15 +147,15 @@ export default function ExpertReviewTeam() {
     const expertReviews: ExpertReview[] = [
       {
         expertId: "ui-expert",
-        summary: "Strong visual foundation with Linear-inspired design, but several UX improvements needed before launch.",
+        summary: "Strong visual foundation but several UX improvements needed before launch.",
         findings: [
           {
             id: "ui-1",
             category: "ui",
             severity: "improvement",
             title: "Chart modal lacks loading state",
-            description: "When clicking a commodity, the chart area shows empty space while data loads.",
-            recommendation: "Add animated skeleton loader matching the chart dimensions",
+            description: "When clicking commodity, chart shows empty space while data loads.",
+            recommendation: "Add animated skeleton loader matching chart dimensions",
             effort: "low",
             impact: "medium"
           },
@@ -197,7 +164,7 @@ export default function ExpertReviewTeam() {
             category: "ui",
             severity: "suggestion",
             title: "Commodity cards could show sparklines",
-            description: "Visual trend indication in the grid view would help users spot changes at a glance.",
+            description: "Visual trend indication would help users spot changes at glance.",
             recommendation: "Add mini sparkline charts to each commodity card",
             effort: "medium",
             impact: "high"
@@ -217,14 +184,14 @@ export default function ExpertReviewTeam() {
       },
       {
         expertId: "content-expert",
-        summary: "Content structure is good, but clarity and guidance need improvement for first-time users.",
+        summary: "Content structure is good but clarity needs improvement for first-time users.",
         findings: [
           {
             id: "content-1",
             category: "content",
             severity: "improvement",
             title: "Commodity symbols are cryptic",
-            description: "Users may not understand 'BRENT', 'ALUM', or 'NATGAS' abbreviations.",
+            description: "Users may not understand BRENT, ALUM, or NATGAS abbreviations.",
             recommendation: "Add full names on hover or expand cards to show descriptions",
             effort: "low",
             impact: "high"
@@ -234,8 +201,8 @@ export default function ExpertReviewTeam() {
             category: "content",
             severity: "suggestion",
             title: "News section lacks context",
-            description: "The news feed doesn't explain why these specific sources were chosen.",
-            recommendation: "Add a brief 'About' section explaining the curation",
+            description: "News feed doesn't explain why specific sources were chosen.",
+            recommendation: "Add brief About section explaining curation",
             effort: "low",
             impact: "low"
           },
@@ -244,7 +211,7 @@ export default function ExpertReviewTeam() {
             category: "content",
             severity: "improvement",
             title: "Empty news state is too minimal",
-            description: "When no news match filters, the message is too basic.",
+            description: "When no news match filters, message is too basic.",
             recommendation: "Add helpful suggestions and quick filter reset options",
             effort: "low",
             impact: "medium"
@@ -254,15 +221,15 @@ export default function ExpertReviewTeam() {
       },
       {
         expertId: "integration-expert",
-        summary: "Good data architecture, but error handling and data freshness need attention.",
+        summary: "Good data architecture but error handling and data freshness need attention.",
         findings: [
           {
             id: "int-1",
             category: "integration",
             severity: "critical",
             title: "No fallback if Yahoo Finance fails",
-            description: "If the API is down or rate-limited, users see stale or missing data without explanation.",
-            recommendation: "Implement cached data with 'last updated' timestamps and error messages",
+            description: "If API is down or rate-limited, users see stale data without explanation.",
+            recommendation: "Implement cached data with last updated timestamps and error messages",
             effort: "medium",
             impact: "high"
           },
@@ -271,7 +238,7 @@ export default function ExpertReviewTeam() {
             category: "integration",
             severity: "improvement",
             title: "NOK rate uses mock data",
-            description: "NOK/EUR rate isn't fetched from a real source like Norges Bank.",
+            description: "NOK/EUR rate isn't fetched from real source like Norges Bank.",
             recommendation: "Integrate Norges Bank API for official NOK rates",
             effort: "medium",
             impact: "high"
@@ -282,7 +249,7 @@ export default function ExpertReviewTeam() {
             severity: "suggestion",
             title: "Could add more commodities",
             description: "Only 5 commodities tracked; users might want silver, wheat, or crypto.",
-            recommendation: "Add Silver (SI=F) and Bitcoin futures as additional options",
+            recommendation: "Add Silver SI=F and Bitcoin futures as additional options",
             effort: "low",
             impact: "medium"
           }
@@ -291,15 +258,15 @@ export default function ExpertReviewTeam() {
       },
       {
         expertId: "performance-expert",
-        summary: "Performance is acceptable for MVP, but several optimizations needed for scale.",
+        summary: "Performance is acceptable for MVP but several optimizations needed for scale.",
         findings: [
           {
             id: "perf-1",
             category: "performance",
             severity: "improvement",
             title: "Chart data not optimized",
-            description: "Loading full year of hourly data (8760 points) for all charts is overkill.",
-            recommendation: "Downsample data based on selected time range (daily for 1y, hourly for 1d)",
+            description: "Loading full year of hourly data 8760 points for all charts is overkill.",
+            recommendation: "Downsample data based on selected time range daily for 1y, hourly for 1d",
             effort: "medium",
             impact: "high"
           },
@@ -308,7 +275,7 @@ export default function ExpertReviewTeam() {
             category: "performance",
             severity: "suggestion",
             title: "No data prefetching",
-            description: "Users wait for data to load after clicking a commodity.",
+            description: "Users wait for data to load after clicking commodity.",
             recommendation: "Prefetch chart data on hover or during idle time",
             effort: "medium",
             impact: "medium"
@@ -347,7 +314,7 @@ export default function ExpertReviewTeam() {
         "AI-powered insights - trend analysis and prediction indicators",
         "Mobile app - native iOS/Android apps with push notifications"
       ],
-      estimatedImpact: "Addressing the 'Quick Wins' will improve user satisfaction by ~40%. Full implementation of all recommendations positions this as a professional-grade financial dashboard."
+      estimatedImpact: "Addressing the Quick Wins will improve user satisfaction by approximately 40%. Full implementation positions this as a professional-grade financial dashboard."
     };
 
     setFinalRecommendation(recommendation);
@@ -378,7 +345,6 @@ export default function ExpertReviewTeam() {
 
   const handleApproveImplementation = () => {
     setPhase("approved");
-    // Here you would trigger the actual implementation
   };
 
   const getSeverityColor = (severity: string) => {
@@ -391,17 +357,12 @@ export default function ExpertReviewTeam() {
   };
 
   const getEffortBadge = (effort: string) => {
-    const colors = {
-      low: "text-emerald-400",
-      medium: "text-amber-400",
-      high: "text-red-400"
-    };
+    const colors = { low: "text-emerald-400", medium: "text-amber-400", high: "text-red-400" };
     return colors[effort as keyof typeof colors] || "text-[#8a8a9a]";
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white flex items-center gap-3">
@@ -442,7 +403,6 @@ export default function ExpertReviewTeam() {
         )}
       </div>
 
-      {/* Expert Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {experts.map((expert) => {
           const Icon = expert.icon;
@@ -481,7 +441,6 @@ export default function ExpertReviewTeam() {
         })}
       </div>
 
-      {/* Discussion Phase */}
       {(phase === "discussing" || phase === "reviewing") && discussions.length > 0 && (
         <div className="bg-[#13131f] rounded-xl border border-white/[0.06] p-4">
           <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
@@ -490,7 +449,7 @@ export default function ExpertReviewTeam() {
           </h3>
           
           <div className="space-y-3 max-h-[300px] overflow-y-auto">
-            {discussions.map((disc, idx) => {
+            {discussions.map((disc) => {
               const expert = experts.find(e => e.id === disc.expertId)!;
               const Icon = expert.icon;
               
@@ -514,10 +473,8 @@ export default function ExpertReviewTeam() {
         </div>
       )}
 
-      {/* Final Recommendations */}
       {phase === "presenting" && finalRecommendation && (
         <div className="space-y-6">
-          {/* Summary Card */}
           <div className="bg-gradient-to-r from-[#5b8aff]/10 to-purple-500/10 rounded-xl border border-[#5b8aff]/20 p-6">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-[#5b8aff]/20 flex items-center justify-center">
@@ -542,11 +499,10 @@ export default function ExpertReviewTeam() {
             </div>
           </div>
 
-          {/* Quick Wins */}
           <div className="bg-[#13131f] rounded-xl border border-white/[0.06] p-4">
             <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-emerald-400" />
-              Quick Wins (Do These First)
+              Quick Wins Do These First
             </h3>
             
             <div className="space-y-3">
@@ -575,7 +531,6 @@ export default function ExpertReviewTeam() {
             </div>
           </div>
 
-          {/* Strategic Improvements */}
           <div className="bg-[#13131f] rounded-xl border border-white/[0.06] p-4">
             <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-amber-400" />
@@ -587,11 +542,9 @@ export default function ExpertReviewTeam() {
                 <div key={finding.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
                   <div className="flex items-start justify-between mb-2">
                     <h4 className="font-medium text-white">{finding.title}</h4>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs ${getEffortBadge(finding.effort)}`}>
-                        {finding.effort} effort
-                      </span>
-                    </div>
+                    <span className={`text-xs ${getEffortBadge(finding.effort)}`}>
+                      {finding.effort} effort
+                    </span>
                   </div>
                   
                   <p className="text-sm text-[#8a8a9a] mb-2">{finding.description}</p>
@@ -605,7 +558,6 @@ export default function ExpertReviewTeam() {
             </div>
           </div>
 
-          {/* Long Term Vision */}
           <div className="bg-[#13131f] rounded-xl border border-white/[0.06] p-4">
             <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-400" />
