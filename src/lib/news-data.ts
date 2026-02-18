@@ -116,6 +116,14 @@ function categorizeArticle(title: string, description: string = ""): string {
   return "markets";
 }
 
+// Filter out unwanted sources
+function isAllowedSource(title: string, source: string): boolean {
+  const text = (title + " " + source).toLowerCase();
+  // Exclude VG, Verdens Gang, and other non-financial sources
+  const blockedTerms = ["vg", "verdens gang", "dagbladet", "nrk", "tv2", "aftenposten"];
+  return !blockedTerms.some(term => text.includes(term));
+}
+
 // Fetch and parse all news
 export async function fetchAllNews(): Promise<ParsedArticle[]> {
   const allArticles: ParsedArticle[] = [];
@@ -124,6 +132,7 @@ export async function fetchAllNews(): Promise<ParsedArticle[]> {
     // Fetch E24
     const e24Items = await fetchRSSFeed(RSS_FEEDS.e24.url);
     e24Items.slice(0, 10).forEach((item, index) => {
+      if (!isAllowedSource(item.title, "E24")) return;
       const summary = generateSummary(item.description || "");
       allArticles.push({
         id: `e24-${index}`,
@@ -144,6 +153,7 @@ export async function fetchAllNews(): Promise<ParsedArticle[]> {
     // Fetch Finansavisen
     const finansItems = await fetchRSSFeed(RSS_FEEDS.finansavisen.url);
     finansItems.slice(0, 10).forEach((item, index) => {
+      if (!isAllowedSource(item.title, "Finansavisen")) return;
       const summary = generateSummary(item.description || "");
       allArticles.push({
         id: `finans-${index}`,
