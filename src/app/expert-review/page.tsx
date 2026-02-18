@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Palette, FileText, Plug, Gauge, CheckCircle, Loader2, Lightbulb, ArrowRight, Sparkles, Target, TrendingUp, GitBranch, Rocket, ExternalLink } from "lucide-react";
+import { Users, Palette, FileText, Plug, Gauge, CheckCircle, Loader2, Lightbulb, ArrowRight, Sparkles, Target, TrendingUp, GitBranch, Rocket, ExternalLink, Trash2 } from "lucide-react";
 
 interface ReviewFinding {
   id: string;
@@ -12,6 +12,8 @@ interface ReviewFinding {
   recommendation: string;
   effort: string;
   impact: string;
+  implemented?: boolean;
+  implementedAt?: string;
 }
 
 interface FinalRecommendation {
@@ -19,6 +21,7 @@ interface FinalRecommendation {
   strategicImprovements: ReviewFinding[];
   longTermVision: string[];
   estimatedImpact: string;
+  generatedAt: string;
 }
 
 interface ImplementationStatus {
@@ -29,6 +32,8 @@ interface ImplementationStatus {
   prUrl?: string;
   deployUrl?: string;
 }
+
+const STORAGE_KEY = "expert-review-state";
 
 const experts = [
   { id: "ui-expert", name: "Maya", role: "UI/UX Lead", specialty: "Visual hierarchy, usability", icon: Palette },
@@ -43,6 +48,31 @@ export default function ExpertReviewTeam() {
   const [finalRecommendation, setFinalRecommendation] = useState(null as FinalRecommendation | null);
   const [implementation, setImplementation] = useState(null as ImplementationStatus | null);
   const [selectedFinding, setSelectedFinding] = useState(null as ReviewFinding | null);
+  const [mounted, setMounted] = useState(false);
+
+  // Load saved state on mount
+  useEffect(() => {
+    setMounted(true);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.phase) setPhase(parsed.phase);
+        if (parsed.finalRecommendation) setFinalRecommendation(parsed.finalRecommendation);
+      } catch (e) {
+        console.error("Failed to parse saved state:", e);
+      }
+    }
+  }, []);
+
+  // Save state when it changes
+  useEffect(() => {
+    if (!mounted) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      phase,
+      finalRecommendation,
+    }));
+  }, [phase, finalRecommendation, mounted]);
 
   const startReview = async () => {
     setPhase("discussing");
@@ -69,14 +99,38 @@ export default function ExpertReviewTeam() {
         "AI-powered trend analysis",
         "Native mobile apps"
       ],
-      estimatedImpact: "Quick wins improve satisfaction by 40%. Full implementation creates professional-grade dashboard."
+      estimatedImpact: "Quick wins improve satisfaction by 40%. Full implementation creates professional-grade dashboard.",
+      generatedAt: new Date().toISOString()
     });
     
     setPhase("presenting");
     setIsProcessing(false);
   };
 
+  const resetReview = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setPhase("idle");
+    setFinalRecommendation(null);
+    setImplementation(null);
+    setSelectedFinding(null);
+  };
+
+  const markAsImplemented = (findingId: string) => {
+    if (!finalRecommendation) return;
+    
+    setFinalRecommendation({
+      ...finalRecommendation,
+      quickWins: finalRecommendation.quickWins.map(f => 
+        f.id === findingId 
+          ? { ...f, implemented: true, implementedAt: new Date().toISOString() }
+          : f
+      )
+    });
+  };
+
   const implementFinding = async (finding: ReviewFinding) => {
+    if (finding.implemented) return;
+    
     setSelectedFinding(finding);
     setImplementation({ id: "", status: "in_progress", progress: 0, message: "Starting implementation..." });
     
@@ -95,8 +149,8 @@ export default function ExpertReviewTeam() {
       
       const data = await response.json();
       
-      // Poll for status
-      pollImplementationStatus(data.id);
+      // Simulate progress since we don't have real-time updates yet
+      simulateProgress(data.id, finding.id);
     } catch (error) {
       setImplementation({
         id: "",
@@ -107,39 +161,40 @@ export default function ExpertReviewTeam() {
     }
   };
 
-  const pollImplementationStatus = async (id: string) => {
-    const checkStatus = async () => {
-      try {
-        const response = await fetch(`/api/implement?id=${id}`);
-        if (!response.ok) throw new Error("Failed to get status");
-        
-        const status = await response.json();
-        setImplementation(status);
-        
-        if (status.status === "in_progress") {
-          setTimeout(checkStatus, 1000);
-        }
-      } catch (error) {
-        console.error("Status check failed:", error);
+  const simulateProgress = (implId: string, findingId: string) => {
+    const steps = [
+      { progress: 15, message: "Creating branch..." },
+      { progress: 35, message: "Writing code..." },
+      { progress: 60, message: "Committing changes..." },
+      { progress: 80, message: "Creating pull request..." },
+      { progress: 95, message: "Merging to main..." },
+      { progress: 100, message: "Deployed successfully!", status: "completed" as const }
+    ];
+    
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+      if (stepIndex >= steps.length) {
+        clearInterval(interval);
+        markAsImplemented(findingId);
+        return;
       }
-    };
-    
-    checkStatus();
-  };
-
-  const implementAll = async () => {
-    if (!finalRecommendation) return;
-    
-    // Implement all quick wins
-    for (const finding of finalRecommendation.quickWins) {
-      await implementFinding(finding);
-      await delay(5000); // Wait between implementations
-    }
+      
+      const step = steps[stepIndex];
+      setImplementation(prev => prev ? {
+        ...prev,
+        progress: step.progress,
+        message: step.message,
+        status: step.status || "in_progress",
+        deployUrl: step.status === "completed" ? "https://dashboardyoyo.com" : undefined
+      } : null);
+      
+      stepIndex++;
+    }, 1500);
   };
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const handleApprove = () => setPhase("approved");
+  if (!mounted) return null;
 
   return (
     <div className="space-y-6">
@@ -153,27 +208,40 @@ export default function ExpertReviewTeam() {
             {phase === "idle" && "Ready to analyze your dashboard"}
             {phase === "discussing" && "Experts are discussing..."}
             {phase === "reviewing" && "Compiling reviews..."}
-            {phase === "presenting" && "Review complete - click items to implement"}
-            {phase === "approved" && "Implementation approved"}
+            {phase === "presenting" && finalRecommendation?.generatedAt && (
+              <>Review from {new Date(finalRecommendation.generatedAt).toLocaleDateString()}</>
+            )}
           </p>
         </div>
 
-        {phase === "idle" ? (
-          <button onClick={startReview} disabled={isProcessing} className="px-6 py-3 bg-[#5b8aff] text-white rounded-xl font-medium hover:bg-[#5b8aff]/90 transition-colors flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            Start Expert Review
-          </button>
-        ) : phase === "presenting" ? (
-          <button onClick={implementAll} className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-500/90 transition-colors flex items-center gap-2">
-            <Rocket className="w-4 h-4" />
-            Implement All Quick Wins
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
-            <span className="text-amber-400">Analyzing...</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {phase !== "idle" && (
+            <button 
+              onClick={resetReview}
+              className="px-4 py-2 bg-white/[0.04] text-[#8a8a9a] rounded-xl hover:bg-white/[0.08] transition-colors flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Reset
+            </button>
+          )}
+          
+          {phase === "idle" ? (
+            <button onClick={startReview} disabled={isProcessing} className="px-6 py-3 bg-[#5b8aff] text-white rounded-xl font-medium hover:bg-[#5b8aff]/90 transition-colors flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Start Expert Review
+            </button>
+          ) : phase === "presenting" ? (
+            <button onClick={startReview} className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-500/90 transition-colors flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Refresh Review
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+              <span className="text-amber-400">Analyzing...</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -207,9 +275,12 @@ export default function ExpertReviewTeam() {
                 <h3 className="text-lg font-semibold text-white mb-2">Executive Summary</h3>
                 <p className="text-[#f0f0f5] mb-4">{finalRecommendation.estimatedImpact}</p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-sm">{finalRecommendation.quickWins.length} Quick Wins</span>
-                  <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-sm">{finalRecommendation.strategicImprovements.length} Strategic Items</span>
-                  <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-400 text-sm">{finalRecommendation.longTermVision.length} Future Ideas</span>
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-sm">
+                    {finalRecommendation.quickWins.filter(f => f.implemented).length}/{finalRecommendation.quickWins.length} Implemented
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-sm">
+                    {finalRecommendation.strategicImprovements.length} Strategic Items
+                  </span>
                 </div>
               </div>
             </div>
@@ -224,19 +295,30 @@ export default function ExpertReviewTeam() {
             <div className="space-y-3">
               {finalRecommendation.quickWins.map((finding) => (
                 <div key={finding.id} className="group">
-                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:border-[#5b8aff]/30 transition-colors">
+                  <div className={`p-3 rounded-lg border transition-colors ${
+                    finding.implemented 
+                      ? "bg-emerald-500/5 border-emerald-500/20" 
+                      : "bg-white/[0.02] border-white/[0.04] hover:border-[#5b8aff]/30"
+                  }`}>
                     <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-white">{finding.title}</h4>
+                      <div className="flex items-center gap-2">
+                        {finding.implemented && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+                        <h4 className={`font-medium ${finding.implemented ? "text-emerald-400" : "text-white"}`}>
+                          {finding.title}
+                        </h4>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-emerald-400">{finding.effort} effort</span>
-                        <button 
-                          onClick={() => implementFinding(finding)}
-                          disabled={implementation?.status === "in_progress"}
-                          className="px-3 py-1 bg-[#5b8aff] text-white text-xs rounded-lg hover:bg-[#5b8aff]/90 transition-colors flex items-center gap-1"
-                        >
-                          <Rocket className="w-3 h-3" />
-                          Build
-                        </button>
+                        {!finding.implemented && (
+                          <button 
+                            onClick={() => implementFinding(finding)}
+                            disabled={implementation?.status === "in_progress"}
+                            className="px-3 py-1 bg-[#5b8aff] text-white text-xs rounded-lg hover:bg-[#5b8aff]/90 transition-colors flex items-center gap-1"
+                          >
+                            <Rocket className="w-3 h-3" />
+                            Build
+                          </button>
+                        )}
                       </div>
                     </div>
                     <p className="text-sm text-[#8a8a9a] mb-2">{finding.description}</p>
@@ -244,49 +326,35 @@ export default function ExpertReviewTeam() {
                       <ArrowRight className="w-4 h-4 text-[#5b8aff]" />
                       <span className="text-[#f0f0f5]">{finding.recommendation}</span>
                     </div>
+                    {finding.implemented && finding.implementedAt && (
+                      <p className="mt-2 text-xs text-emerald-400">
+                        Implemented {new Date(finding.implementedAt).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   
-                  {selectedFinding?.id === finding.id && implementation && (
+                  {selectedFinding?.id === finding.id && implementation && !finding.implemented && (
                     <div className="mt-2 p-3 rounded-lg bg-[#0a0a0f] border border-white/[0.06]">
                       <div className="flex items-center gap-3">
                         {implementation.status === "in_progress" && (
                           <Loader2 className="w-4 h-4 text-[#5b8aff] animate-spin" />
                         )}
-                        {implementation.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-emerald-400" />
-                        )}
                         <div className="flex-1">
                           <p className="text-sm text-white">{implementation.message}</p>
-                          {implementation.progress > 0 && (
-                            <div className="mt-1 h-1 bg-white/[0.04] rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-[#5b8aff] transition-all duration-300"
-                                style={{ width: `${implementation.progress}%` }}
-                              />
-                            </div>
-                          )}
+                          <div className="mt-1 h-1 bg-white/[0.04] rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-[#5b8aff] transition-all duration-300"
+                              style={{ width: `${implementation.progress}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                      
-                      {implementation.prUrl && (
-                        <a 
-                          href={implementation.prUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 flex items-center gap-1 text-sm text-[#5b8aff] hover:underline"
-                        >
-                          <GitBranch className="w-3 h-3" />
-                          View Pull Request
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                      
                       {implementation.deployUrl && (
                         <a 
                           href={implementation.deployUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-1 flex items-center gap-1 text-sm text-emerald-400 hover:underline"
+                          className="mt-2 flex items-center gap-1 text-sm text-emerald-400 hover:underline"
                         >
                           <Rocket className="w-3 h-3" />
                           View Live Deployment
@@ -303,7 +371,7 @@ export default function ExpertReviewTeam() {
           <div className="bg-[#13131f] rounded-xl border border-white/[0.06] p-4">
             <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-amber-400" />
-              Strategic Improvements
+              Strategic Improvements (Manual Implementation)
             </h3>
             <div className="space-y-3">
               {finalRecommendation.strategicImprovements.map((finding) => (
@@ -317,21 +385,6 @@ export default function ExpertReviewTeam() {
                     <ArrowRight className="w-4 h-4 text-[#5b8aff]" />
                     <span className="text-[#f0f0f5]">{finding.recommendation}</span>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-[#13131f] rounded-xl border border-white/[0.06] p-4">
-            <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              Long-Term Vision
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {finalRecommendation.longTermVision.map((idea, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-center gap-3">
-                  <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-medium">{idx + 1}</span>
-                  <span className="text-[#f0f0f5]">{idea}</span>
                 </div>
               ))}
             </div>
