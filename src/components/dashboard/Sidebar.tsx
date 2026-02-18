@@ -6,13 +6,14 @@ import { useEffect, useState } from "react";
 import {
     LayoutDashboard, Users, Brain, Activity, MessageSquare,
     Zap, FileText, BarChart3, Menu, X, FolderKanban,
-    CheckCircle, Bell, ChevronRight
+    CheckCircle, Bell, ChevronRight, Newspaper, Bot, Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, any> = {
     LayoutDashboard, Users, Brain, Activity, MessageSquare,
     Zap, FileText, BarChart3, FolderKanban, CheckCircle, Bell,
+    Newspaper, Bot, Sparkles,
 };
 
 const fallbackNavItems = [
@@ -21,6 +22,7 @@ const fallbackNavItems = [
   { href: "/projects", label: "Projects", icon: "FolderKanban" },
   { href: "/team", label: "Team Chat", icon: "Users" },
   { href: "/news", label: "News", icon: "Newspaper" },
+  { href: "/expert-review", label: "Expert Review", icon: "Sparkles" },
   { href: "/files", label: "Files", icon: "FileText" },
   { href: "/agents", label: "Agents", icon: "Bot" },
   { href: "/brain", label: "Brain", icon: "Brain" },
